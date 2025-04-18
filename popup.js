@@ -6,7 +6,10 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-
+                // const targetHour = 14; // Test time (2:45 PM)
+                // const targetMinute = 45;
+                const targetHour = 7; // Production time (7:00 AM)
+                const targetMinute = 0;
                 // Show a status message on the page
                 function showStatus(message, isError = false) {
                     // Create status container if it doesn't exist
@@ -49,11 +52,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 // Schedule the booking process
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
-
-                    // const targetHour = 14; // Test time (2:45 PM)
-                    // const targetMinute = 45;
-                    const targetHour = 7; // Production time (7:00 AM)
-                    const targetMinute = 0;
 
                     const { delayMs, formattedTime } = calculateDelayUntilTargetTime(targetHour, targetMinute);
 
