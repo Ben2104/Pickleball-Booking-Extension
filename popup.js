@@ -124,7 +124,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Wait for the booking page to load before proceeding
                         setTimeout(() => {
                             clickDayButton();
-                        }, 500);
+                        }, 900);
                     } else {
                         console.error("❌ Initial Book Now link not found");
                         showStatus("❌ Book Now link not found!", true);
@@ -228,33 +228,58 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 // IMPROVED COURT SELECTION FUNCTION
                 function selectDesiredCourt() {
-                    console.log(`🏟️ Looking for Court ${desiredCourt}`);
-                    showStatus(`Selecting Court ${desiredCourt}...`);
+                    // Create a Map for court priorities
+                    const courtPriorityMap = new Map([
+                        [0, "PICKLEBALL 2"],
+                        [1, "PICKLEBALL 4"],
+                        [2, "PICKLEBALL 8"],
+                        [3, "PICKLEBALL 9"],
+                        [4, "PICKLEBALL 3"],
+                        [5, "PICKLEBALL 6"],
+                        [6, "PICKLEBALL 7"],
+                        [7, "PICKLEBALL 1"],
+                        [8, "PICKLEBALL 5"],
+                        [9, "PICKLEBALL 10"]
+                    ]);
 
-                    // Try multiple ways the court might be displayed
-                    const courtButtons = Array.from(document.querySelectorAll("button")).filter(btn => {
-                        const btnText = btn.textContent.trim().toUpperCase();
-                        return (
-                            btnText.includes(`PICKLEBALL ${desiredCourt}`) || // Match "PICKLEBALL <number>"
-                            btnText === `PICKLEBALL ${desiredCourt}` || // Exact match
-                            btnText === desiredCourt // Match the raw court name
-                        ) && !btn.disabled && btn.offsetParent !== null; // Ensure the button is visible and enabled
+                    console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
+
+                    showStatus("🏟️ Selecting the best available court...");
+
+                    // Get all available court buttons
+                    const courtButtons = Array.from(document.querySelectorAll("button"))
+                        .filter(btn => {
+                            const btnText = btn.textContent.trim().toUpperCase();
+                            // Check if the button text matches any value in the Map
+                            return Array.from(courtPriorityMap.values()).includes(btnText) && !btn.disabled && btn.offsetParent !== null;
+                        });
+
+                    // Sort the buttons based on the priority defined in the Map
+                    courtButtons.sort((a, b) => {
+                        const aText = a.textContent.trim().toUpperCase();
+                        const bText = b.textContent.trim().toUpperCase();
+
+                        const aPriority = Array.from(courtPriorityMap.values()).indexOf(aText);
+                        const bPriority = Array.from(courtPriorityMap.values()).indexOf(bText);
+
+                        return aPriority - bPriority;
                     });
 
                     if (courtButtons.length > 0) {
-                        const courtButton = courtButtons[0];
-                        courtButton.click();
-                        console.log(`✅ Selected Court ${desiredCourt}`);
-                        showStatus(`✅ Court ${desiredCourt} selected`);
+                        const selectedCourt = courtButtons[0]; // Pick the highest-priority court
+                        const selectedCourtName = selectedCourt.textContent.trim();
+                        selectedCourt.click();
+                        console.log(`✅ Selected court: ${selectedCourtName}`);
+                        showStatus(`✅ Selected court: ${selectedCourtName}`);
 
-                        // Proceed to the next step
+                        // Add delay before proceeding to the next step
                         setTimeout(() => {
                             proceedAfterCourtSelection();
-                        }, 500);
+                        }, 1000);
                     } else {
-                        console.error(`❌ Court ${desiredCourt} not found or unavailable`);
-                        showStatus(`❌ Court ${desiredCourt} unavailable!`, true);
-                        alert(`Court ${desiredCourt} is not available. Please select manually.`);
+                        console.error("❌ No available courts found based on priority.");
+                        showStatus("❌ No available courts found!", true);
+                        alert("No courts are available based on the priority order. Please select a court manually.");
                     }
                 }
 
