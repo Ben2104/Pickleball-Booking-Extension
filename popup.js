@@ -3,7 +3,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: () => {
-                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
+                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
+                // const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
                 // const targetHour = 14; // Test time (2:45 PM)
@@ -121,7 +122,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Wait for the booking page to load before proceeding
                         setTimeout(() => {
                             clickDayButton();
-                        }, 900);
+                        }, 1000);
                     } else {
                         console.error("❌ Initial Book Now link not found");
                         showStatus("❌ Book Now link not found!", true);
@@ -249,6 +250,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         [6, "PICKLEBALL 1"],
                         [7, "PICKLEBALL 5"],
                         [8, "PICKLEBALL 10"],
+                        [9, "TENNIS 3"],
                     ]);
 
                     console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
