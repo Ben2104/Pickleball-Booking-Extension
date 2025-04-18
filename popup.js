@@ -4,6 +4,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
             target: { tabId: tabs[0].id },
             func: () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
+                const desiredCourt = "PICKLEBALL 4"; // Specific court to select
                 let index = 0;
                 let scheduledTimer = null;
 
@@ -42,50 +43,38 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                     return {
                         delayMs: targetTime - now,
-                        formattedTime: targetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        formattedTime: targetTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
                     };
                 }
 
                 // Schedule the booking process
                 function scheduleBooking() {
-                    // Cancel any existing scheduled booking
-                    if (scheduledTimer) {
-                        clearTimeout(scheduledTimer);
-                    }
-
-                    // For testing use 14:45 (2:45 PM)
-                    const targetHour = 14;
+                    if (scheduledTimer) clearTimeout(scheduledTimer);
+                    
+                    const targetHour = 14; // Test time (2:45 PM)
                     const targetMinute = 45;
-
-                    // For production use 7:00 AM
-                    // const targetHour = 7;
+                    // const targetHour = 7; // Production time (7:00 AM)
                     // const targetMinute = 0;
-
+                    
                     const { delayMs, formattedTime } = calculateDelayUntilTargetTime(targetHour, targetMinute);
-
-                    console.log(`⏳ Booking scheduled for ${formattedTime} (${Math.round(delayMs / 1000 / 60)} minutes from now)`);
+                    
+                    console.log(`⏳ Booking scheduled for ${formattedTime}`);
                     showStatus(`⏰ Booking scheduled for ${formattedTime}`);
-
-                    // Set the timer to trigger the booking process
+                    
                     scheduledTimer = setTimeout(() => {
-                        console.log(`🚀 Automatic booking triggered at scheduled time!`);
+                        console.log(`🚀 Automatic booking triggered!`);
                         showStatus("🚀 Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
-
-                    // Add a cancel button
+                    
                     addCancelButton();
                 }
-
-                // Add a button to cancel scheduled booking
+                
                 function addCancelButton() {
                     // Remove existing cancel button if any
                     const existingBtn = document.getElementById("cancel-scheduled-booking");
-                    if (existingBtn) {
-                        existingBtn.remove();
-                    }
-
-                    // Create cancel button
+                    if (existingBtn) existingBtn.remove();
+                    
                     const cancelBtn = document.createElement("button");
                     cancelBtn.id = "cancel-scheduled-booking";
                     cancelBtn.textContent = "Cancel Scheduled Booking";
@@ -99,7 +88,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     cancelBtn.style.borderRadius = "5px";
                     cancelBtn.style.cursor = "pointer";
                     cancelBtn.style.zIndex = "9999";
-
+                    
                     cancelBtn.addEventListener("click", () => {
                         if (scheduledTimer) {
                             clearTimeout(scheduledTimer);
@@ -109,7 +98,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             cancelBtn.remove();
                         }
                     });
-
+                    
                     document.body.appendChild(cancelBtn);
                 }
 
@@ -118,7 +107,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     console.log("🚀 Starting booking automation");
                     clickBookNowButton();
                 }
-
+                
                 function clickBookNowButton() {
                     // First, try to find the Book Now link with the specific HTML structure
                     const bookNowLinks = Array.from(document.querySelectorAll("a.ui.button.large.fluid.white"));
@@ -126,20 +115,68 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         const span = link.querySelector("span.text.bold.green");
                         return span && span.textContent.trim().toUpperCase().includes("BOOK NOW");
                     });
-
+                    
                     if (bookNowLink) {
-                        console.log("✅ Found initial Book Now link:", bookNowLink);
+                        console.log("✅ Found initial Book Now link");
                         bookNowLink.click();
                         console.log("✅ Clicked initial Book Now link");
 
                         // Wait for the booking page to load before proceeding
                         setTimeout(() => {
                             clickDayButton();
-                        }, 2000); // Longer delay for page navigation
+                        }, 2000);
                     } else {
                         console.error("❌ Initial Book Now link not found");
                         showStatus("❌ Book Now link not found!", true);
-                        alert("Could not find the initial Book Now link. Make sure you're on the correct page.");
+                        alert("Could not find the initial Book Now link.");
+                    }
+                }
+
+                function clickDayButton() {
+                    const today = new Date();
+                    const targetDay = new Date(today);
+                    targetDay.setDate(today.getDate() + 7);
+                    const targetDayNumber = targetDay.getDate().toString();
+                    const targetMonth = targetDay.toLocaleString('default', { month: 'short' });
+                    
+                    console.log(`Looking for ${targetMonth} ${targetDayNumber}`);
+                    showStatus(`Looking for ${targetMonth} ${targetDayNumber}...`);
+
+                    // Try to find by day number first
+                    const dayButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
+                        .find(button => {
+                            const dayNumberDiv = button.querySelector("div.day_number");
+                            return dayNumberDiv && dayNumberDiv.textContent.trim() === targetDayNumber && button.offsetParent !== null;
+                        });
+                    
+                    if (dayButton) {
+                        dayButton.click();
+                        console.log(`✅ Clicked ${targetMonth} ${targetDayNumber}`);
+                        showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
+                        setTimeout(() => {
+                            clickPickleball();
+                        }, 1000);
+                    } else {
+                        // Fallback: Try to find by full date text
+                        const fullDateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
+                            .find(button => {
+                                const dateText = button.textContent.trim();
+                                return dateText.includes(targetMonth) && 
+                                       dateText.includes(targetDayNumber) && 
+                                       button.offsetParent !== null;
+                            });
+                        
+                        if (fullDateButton) {
+                            fullDateButton.click();
+                            console.log(`✅ Clicked ${targetMonth} ${targetDayNumber} (fallback)`);
+                            showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
+                            setTimeout(() => {
+                                clickPickleball();
+                            }, 1000);
+                        } else {
+                            showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
+                            alert(`Could not find the button for ${targetMonth} ${targetDayNumber}.`);
+                        }
                     }
                 }
 
@@ -151,47 +188,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         pickleballBtn.click();
                         console.log("✅ Clicked Pickleball button");
                         showStatus("✅ Selected Pickleball");
-
-                        // Add delay before continuing to time slot selection
                         setTimeout(() => {
                             clickTimeSlot();
                         }, 1000);
                     } else {
                         showStatus("❌ Pickleball button not found!", true);
                         alert("❌ Pickleball button not found.");
-                    }
-                }
-
-                function clickDayButton() {
-                    const today = new Date();
-                    const targetDay = new Date(today);
-                    targetDay.setDate(today.getDate() + 7); // Add 7 days to today's date
-                    const targetDayText = targetDay.getDate().toString();
-
-                    console.log(`Looking for date button with day: ${targetDayText}`);
-                    showStatus(`Looking for day ${targetDayText}...`);
-
-                    const dayButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
-                        .find(button => {
-                            const dayNumberDiv = button.querySelector("div.day_number");
-                            return dayNumberDiv && dayNumberDiv.textContent.trim() === targetDayText && button.offsetParent !== null;
-                        });
-
-                    console.log("Found day button:", dayButton);
-
-                    if (dayButton) {
-                        dayButton.click();
-                        console.log(`✅ Clicked button for day ${targetDayText}`);
-                        showStatus(`✅ Selected day ${targetDayText}`);
-
-                        // Add delay before proceeding to the next step
-                        setTimeout(() => {
-                            clickPickleball();
-                        }, 1000);
-                    } else {
-                        console.error(`❌ Button for day ${targetDayText} not found.`);
-                        showStatus(`❌ Day ${targetDayText} not found!`, true);
-                        alert(`Button for day ${targetDayText} not found. Make sure you're on the correct page.`);
                     }
                 }
 
@@ -207,7 +209,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                             // Wait for next screen to load before adding friend
                             setTimeout(() => {
-                                addFriendByName();
+                                selectSpecificCourt();
                             }, 1500);
                         } else {
                             showStatus("❌ NEXT button not found!", true);
@@ -232,6 +234,47 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     setTimeout(clickTimeSlot, 400);
                 }
 
+                // NEW FUNCTION: Select specific court (PICKLEBALL 4)
+                function selectSpecificCourt() {
+                    console.log(`🏟️ Looking for court: ${desiredCourt}`);
+                    showStatus(`🏟️ Selecting ${desiredCourt}...`);
+
+                    const courtButton = Array.from(document.querySelectorAll("button"))
+                        .find(btn => {
+                            const btnText = btn.textContent.trim().toUpperCase();
+                            return btnText === desiredCourt.toUpperCase() && !btn.disabled;
+                        });
+
+                    if (courtButton) {
+                        courtButton.click();
+                        console.log(`✅ Selected ${desiredCourt}`);
+                        showStatus(`✅ Selected ${desiredCourt}`);
+                        setTimeout(() => {
+                            clickNextAfterCourt();
+                        }, 1000);
+                    } else {
+                        showStatus(`❌ ${desiredCourt} not available!`, true);
+                        alert(`${desiredCourt} is not available. Please select another court manually.`);
+                    }
+                }
+
+                function clickNextAfterCourt() {
+                    const nextBtn = Array.from(document.querySelectorAll("button"))
+                        .find(btn => btn.textContent.trim().toUpperCase() === "NEXT");
+
+                    if (nextBtn) {
+                        nextBtn.click();
+                        console.log("✅ Clicked NEXT after court selection");
+                        showStatus("➡️ Proceeding to add users");
+                        setTimeout(() => {
+                            addFriendByName();
+                        }, 1500);
+                    } else {
+                        showStatus("❌ NEXT button not found!", true);
+                        alert("Couldn't find NEXT button after court selection.");
+                    }
+                }
+
                 function addFriendByName() {
                     const openAddUsersBtn = Array.from(document.querySelectorAll("button"))
                         .find(btn => btn.textContent.trim().toUpperCase() === "ADD USERS");
@@ -244,7 +287,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                     openAddUsersBtn.click();
                     console.log("✅ Clicked 'ADD USERS'");
-                    showStatus("✅ Adding users...");
+                    showStatus("👥 Adding users...");
 
                     setTimeout(() => {
                         const addBtn = Array.from(document.querySelectorAll("button"))
@@ -262,150 +305,42 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         // Try FINAL NEXT button after a pause
                         setTimeout(() => {
-                            tryClickNextButton(15);
+                            clickFinalNext();
                         }, 1000);
                     }, 1500);
                 }
 
-                function tryClickNextButton(retries) {
-                    console.log(`Attempting to find final NEXT button (${retries} retries left)`);
-                    showStatus("Looking for final NEXT button...");
+                function clickFinalNext() {
+                    const nextBtn = Array.from(document.querySelectorAll("button"))
+                        .find(btn => btn.textContent.trim().toUpperCase() === "NEXT");
 
-                    setTimeout(() => {
-                        // Try multiple selector strategies
-                        const nextBtnCandidates = [
-                            // Strategy 1: Buttons with text "NEXT"
-                            ...Array.from(document.querySelectorAll("button")).filter(btn =>
-                                btn.textContent.trim().toUpperCase() === "NEXT" &&
-                                btn.offsetParent !== null
-                            ),
-
-                            // Strategy 2: Any element with "NEXT" that looks clickable
-                            ...Array.from(document.querySelectorAll("div, span, a")).filter(el =>
-                                el.textContent.trim().toUpperCase() === "NEXT" &&
-                                el.offsetParent !== null &&
-                                (el.onclick || el.getAttribute("role") === "button")
-                            )
-                        ];
-
-                        console.log(`Found ${nextBtnCandidates.length} potential NEXT buttons`);
-
-                        if (nextBtnCandidates.length > 0) {
-                            const nextBtn = nextBtnCandidates[0];
-                            console.log("✅ Attempting to click NEXT button:", nextBtn);
-                            showStatus("✅ Clicking final NEXT button");
-
-                            // Try multiple click methods
-                            try {
-                                // Method 1: Normal click
-                                nextBtn.click();
-
-                                // Method 2: MouseEvent
-                                nextBtn.dispatchEvent(new MouseEvent("click", {
-                                    bubbles: true,
-                                    cancelable: true,
-                                    view: window
-                                }));
-
-                                console.log("Click attempts complete");
-
-                                // After clicking NEXT, try to find and click the BOOK button
-                                setTimeout(() => {
-                                    tryClickBookButton(15);
-                                }, 1500);
-
-                            } catch (e) {
-                                console.error("Error clicking button:", e);
-                                if (retries > 0) {
-                                    tryClickNextButton(retries - 1);
-                                }
-                            }
-                        } else if (retries > 0) {
-                            console.log("⏳ Retrying NEXT button in 800ms...");
-                            // Increase delay between retries
-                            setTimeout(() => {
-                                tryClickNextButton(retries - 1);
-                            }, 800);
-                        } else {
-                            console.warn("❌ Gave up trying to click 'NEXT'.");
-                            showStatus("❌ Couldn't find NEXT button", true);
-                            alert("Couldn't find the final NEXT button after multiple attempts.");
-                        }
-                    }, 800); // Increased delay
+                    if (nextBtn) {
+                        nextBtn.click();
+                        console.log("✅ Clicked final NEXT button");
+                        showStatus("➡️ Proceeding to book");
+                        setTimeout(() => {
+                            clickBookButton();
+                        }, 1500);
+                    } else {
+                        showStatus("❌ Final NEXT button not found!", true);
+                        alert("Couldn't find final NEXT button.");
+                    }
                 }
 
-                function tryClickBookButton(retries) {
-                    console.log(`Attempting to find BOOK button (${retries} retries left)`);
-                    showStatus("Looking for BOOK button...");
+                function clickBookButton() {
+                    const bookBtn = Array.from(document.querySelectorAll("button"))
+                        .find(btn => btn.textContent.trim().toUpperCase().includes("BOOK"));
 
-                    // Try multiple selector strategies for the BOOK button
-                    const bookBtnCandidates = [
-                        // Strategy 1: Buttons with text "BOOK"
-                        ...Array.from(document.querySelectorAll("button")).filter(btn =>
-                            btn.textContent.trim().toUpperCase() === "BOOK" &&
-                            btn.offsetParent !== null
-                        ),
-
-                        // Strategy 2: Any element with "BOOK" that looks clickable
-                        ...Array.from(document.querySelectorAll("div, span, a")).filter(el =>
-                            el.textContent.trim().toUpperCase() === "BOOK" &&
-                            el.offsetParent !== null &&
-                            (el.onclick || el.getAttribute("role") === "button")
-                        ),
-
-                        // Strategy 3: Buttons with text containing "BOOK NOW" or similar
-                        ...Array.from(document.querySelectorAll("button")).filter(btn =>
-                            (btn.textContent.trim().toUpperCase().includes("BOOK") ||
-                                btn.textContent.trim().toUpperCase().includes("CONFIRM") ||
-                                btn.textContent.trim().toUpperCase().includes("RESERVE")) &&
-                            btn.offsetParent !== null
-                        )
-                    ];
-
-                    console.log(`Found ${bookBtnCandidates.length} potential BOOK buttons`);
-
-                    if (bookBtnCandidates.length > 0) {
-                        const bookBtn = bookBtnCandidates[0];
-                        console.log("✅ Attempting to click BOOK button:", bookBtn);
-                        showStatus("✅ Clicking BOOK button");
-
-                        try {
-                            // Method 1: Normal click
-                            bookBtn.click();
-
-                            // Method 2: MouseEvent
-                            bookBtn.dispatchEvent(new MouseEvent("click", {
-                                bubbles: true,
-                                cancelable: true,
-                                view: window
-                            }));
-
-                            console.log("✅ Booking complete!");
-                            showStatus("✅ BOOKING COMPLETE! 🎉", false);
-                            setTimeout(() => {
-                                alert("✅ Booking has been completed successfully!");
-                            }, 1000);
-                            window.alert = function (message) {
-                                console.log("🧪 Blocked alert:", message);
-                            };
-
-                        } catch (e) {
-                            console.error("Error clicking BOOK button:", e);
-                            if (retries > 0) {
-                                setTimeout(() => {
-                                    tryClickBookButton(retries - 1);
-                                }, 800);
-                            }
-                        }
-                    } else if (retries > 0) {
-                        console.log("⏳ Retrying BOOK button in 800ms...");
+                    if (bookBtn) {
+                        bookBtn.click();
+                        console.log("✅ Clicked BOOK button");
+                        showStatus("✅ BOOKING COMPLETE! 🎉");
                         setTimeout(() => {
-                            tryClickBookButton(retries - 1);
-                        }, 800);
+                            alert("Booking completed successfully!");
+                        }, 1000);
                     } else {
-                        console.warn("❌ Gave up trying to click 'BOOK' button.");
-                        showStatus("❌ Couldn't find BOOK button", true);
-                        alert("Almost there! Found the NEXT button but couldn't find the final BOOK button. You may need to complete this step manually.");
+                        showStatus("❌ BOOK button not found!", true);
+                        alert("Couldn't find BOOK button.");
                     }
                 }
 
@@ -413,11 +348,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 function createControlPanel() {
                     // Remove existing panel if any
                     const existingPanel = document.getElementById("booking-control-panel");
-                    if (existingPanel) {
-                        existingPanel.remove();
-                    }
-
-                    // Create panel
+                    if (existingPanel) existingPanel.remove();
+                    
                     const panel = document.createElement("div");
                     panel.id = "booking-control-panel";
                     panel.style.position = "fixed";
@@ -436,8 +368,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     title.style.margin = "0 0 10px 0";
                     title.style.padding = "0";
                     panel.appendChild(title);
-
-                    // Book Now button
+                    
                     const bookNowBtn = document.createElement("button");
                     bookNowBtn.textContent = "Book Now";
                     bookNowBtn.style.display = "block";
@@ -450,17 +381,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     bookNowBtn.style.borderRadius = "5px";
                     bookNowBtn.style.cursor = "pointer";
                     bookNowBtn.addEventListener("click", () => {
-                        // Cancel any scheduled booking
-                        if (scheduledTimer) {
-                            clearTimeout(scheduledTimer);
-                            scheduledTimer = null;
-                        }
-                        // Start booking immediately
+                        if (scheduledTimer) clearTimeout(scheduledTimer);
                         startBookingProcess();
                     });
                     panel.appendChild(bookNowBtn);
-
-                    // Schedule button
+                    
                     const scheduleBtn = document.createElement("button");
                     scheduleBtn.textContent = "Schedule for 7 AM";
                     scheduleBtn.style.display = "block";
@@ -471,15 +396,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     scheduleBtn.style.border = "none";
                     scheduleBtn.style.borderRadius = "5px";
                     scheduleBtn.style.cursor = "pointer";
-                    scheduleBtn.addEventListener("click", () => {
-                        scheduleBooking();
-                    });
+                    scheduleBtn.addEventListener("click", scheduleBooking);
                     panel.appendChild(scheduleBtn);
-
+                    
                     document.body.appendChild(panel);
                 }
-
-                // Create the control panel
+                
                 createControlPanel();
             }
         });
