@@ -229,17 +229,29 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 // IMPROVED COURT SELECTION FUNCTION
                 function selectDesiredCourt() {
                     // Create a Map for court priorities
+                    // const courtPriorityMap = new Map([
+                    //     [0, "PICKLEBALL 2"],
+                    //     [1, "PICKLEBALL 4"],
+                    //     [2, "PICKLEBALL 8"],
+                    //     [3, "PICKLEBALL 9"],
+                    //     [4, "PICKLEBALL 3"],
+                    //     [5, "PICKLEBALL 6"],
+                    //     [6, "PICKLEBALL 7"],
+                    //     [7, "PICKLEBALL 1"],
+                    //     [8, "PICKLEBALL 5"],
+                    //     [9, "PICKLEBALL 10"]
+                    // ]);
+
                     const courtPriorityMap = new Map([
-                        [0, "PICKLEBALL 2"],
-                        [1, "PICKLEBALL 4"],
-                        [2, "PICKLEBALL 8"],
-                        [3, "PICKLEBALL 9"],
-                        [4, "PICKLEBALL 3"],
-                        [5, "PICKLEBALL 6"],
-                        [6, "PICKLEBALL 7"],
-                        [7, "PICKLEBALL 1"],
-                        [8, "PICKLEBALL 5"],
-                        [9, "PICKLEBALL 10"]
+                        [0, "PICKLEBALL 4"],
+                        [1, "PICKLEBALL 8"],
+                        [2, "PICKLEBALL 9"],
+                        [3, "PICKLEBALL 3"],
+                        [4, "PICKLEBALL 6"],
+                        [5, "PICKLEBALL 7"],
+                        [6, "PICKLEBALL 1"],
+                        [7, "PICKLEBALL 5"],
+                        [8, "PICKLEBALL 10"],
                     ]);
 
                     console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
