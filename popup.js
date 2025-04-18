@@ -124,7 +124,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Wait for the booking page to load before proceeding
                         setTimeout(() => {
                             clickDayButton();
-                        }, 2000);
+                        }, 500);
                     } else {
                         console.error("❌ Initial Book Now link not found");
                         showStatus("❌ Book Now link not found!", true);
@@ -155,7 +155,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
                         setTimeout(() => {
                             clickPickleball();
-                        }, 1000);
+                        }, 500);
                     } else {
                         // Fallback: Try to find by full date text
                         const fullDateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
@@ -172,7 +172,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
                             setTimeout(() => {
                                 clickPickleball();
-                            }, 1000);
+                            }, 500);
                         } else {
                             showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
                             alert(`Could not find the button for ${targetMonth} ${targetDayNumber}.`);
@@ -190,7 +190,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("✅ Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 1000);
+                        }, 500);
                     } else {
                         showStatus("❌ Pickleball button not found!", true);
                         alert("❌ Pickleball button not found.");
@@ -205,7 +205,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             selectDesiredCourt(); // Call the court selection function
-                        }, 2000); // Add a delay before proceeding
+                        }, 500); // Add a delay before proceeding
                         return;
                     }
 
@@ -250,7 +250,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Proceed to the next step
                         setTimeout(() => {
                             proceedAfterCourtSelection();
-                        }, 2000);
+                        }, 500);
                     } else {
                         console.error(`❌ Court ${desiredCourt} not found or unavailable`);
                         showStatus(`❌ Court ${desiredCourt} unavailable!`, true);
@@ -269,7 +269,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             addFriendByName();
-                        }, 3000);
+                        }, 800);
                     } else {
                         showStatus("❌ NEXT button not found!", true);
                         alert("Couldn't proceed after court selection - NEXT button missing");
@@ -307,8 +307,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Try FINAL NEXT button after a pause
                         setTimeout(() => {
                             clickFinalNext();
-                        }, 4000);
-                    }, 1500);
+                        }, 500);
+                    }, 1000);
                 }
 
                 function clickFinalNext() {
@@ -321,7 +321,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("➡️ Proceeding to book");
                         setTimeout(() => {
                             clickBookButton();
-                        }, 5000);
+                        }, 1000);
                     } else {
                         showStatus("❌ Final NEXT button not found!", true);
                         alert("Couldn't find final NEXT button.");
@@ -336,9 +336,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         bookBtn.click();
                         console.log("✅ Clicked BOOK button");
                         showStatus("✅ BOOKING COMPLETE! 🎉");
-                        setTimeout(() => {
-                            alert("Booking completed successfully!");
-                        }, 6000);
+                        window.alert = function (message) {
+                            console.log("🧪 Blocked alert:", message);
+                        };
                     } else {
                         showStatus("❌ BOOK button not found!", true);
                         alert("Couldn't find BOOK button.");
