@@ -51,10 +51,10 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
 
-                    const targetHour = 14; // Test time (2:45 PM)
-                    const targetMinute = 45;
-                    // const targetHour = 7; // Production time (7:00 AM)
-                    // const targetMinute = 0;
+                    // const targetHour = 14; // Test time (2:45 PM)
+                    // const targetMinute = 45;
+                    const targetHour = 7; // Production time (7:00 AM)
+                    const targetMinute = 0;
 
                     const { delayMs, formattedTime } = calculateDelayUntilTargetTime(targetHour, targetMinute);
 
