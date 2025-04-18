@@ -4,7 +4,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
             target: { tabId: tabs[0].id },
             func: () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
-                const desiredCourt = "PICKLEBALL 4"; // Specific court to select
                 let index = 0;
                 let scheduledTimer = null;
 
