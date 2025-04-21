@@ -250,7 +250,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         [6, "PICKLEBALL 1"],
                         [7, "PICKLEBALL 5"],
                         [8, "PICKLEBALL 10"],
-                        [9, "TENNIS 3"],
                     ]);
 
                     console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
