@@ -4,16 +4,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
             target: { tabId: tabs[0].id },
             func: () => {
                 const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
-                // const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-                // const targetHour = 14; // Test time (2:45 PM)
-                // const targetMinute = 45;
                 const targetHour = 7; // Production time (7:00 AM)
-                const targetMinute = 0;
-                // Show a status message on the page
+                const targetMinute = 6;
+
                 function showStatus(message, isError = false) {
-                    // Create status container if it doesn't exist
                     let statusDiv = document.getElementById("booking-status");
                     if (!statusDiv) {
                         statusDiv = document.createElement("div");
@@ -33,13 +29,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     statusDiv.style.border = isError ? "2px solid #ff0000" : "2px solid #00aa00";
                 }
 
-                // Calculate the delay until target time
                 function calculateDelayUntilTargetTime(hours, minutes) {
                     const now = new Date();
                     let targetTime = new Date(now);
                     targetTime.setHours(hours, minutes, 0, 0);
 
-                    // If it's already past the target time today, set it for tomorrow
                     if (now > targetTime) {
                         targetTime.setDate(targetTime.getDate() + 1);
                     }
@@ -50,7 +44,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     };
                 }
 
-                // Schedule the booking process
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
 
@@ -69,7 +62,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 }
 
                 function addCancelButton() {
-                    // Remove existing cancel button if any
                     const existingBtn = document.getElementById("cancel-scheduled-booking");
                     if (existingBtn) existingBtn.remove();
 
@@ -100,34 +92,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     document.body.appendChild(cancelBtn);
                 }
 
-                // Start the booking process
                 function startBookingProcess() {
                     console.log("🚀 Starting booking automation");
-                    clickBookNowButton();
-                }
-
-                function clickBookNowButton() {
-                    // First, try to find the Book Now link with the specific HTML structure
-                    const bookNowLinks = Array.from(document.querySelectorAll("a.ui.button.large.fluid.white"));
-                    const bookNowLink = bookNowLinks.find(link => {
-                        const span = link.querySelector("span.text.bold.green");
-                        return span && span.textContent.trim().toUpperCase().includes("BOOK NOW");
-                    });
-
-                    if (bookNowLink) {
-                        console.log("✅ Found initial Book Now link");
-                        bookNowLink.click();
-                        console.log("✅ Clicked initial Book Now link");
-
-                        // Wait for the booking page to load before proceeding
-                        setTimeout(() => {
-                            clickDayButton();
-                        }, 1000);
-                    } else {
-                        console.error("❌ Initial Book Now link not found");
-                        showStatus("❌ Book Now link not found!", true);
-                        alert("Could not find the initial Book Now link.");
-                    }
+                    clickDayButton();
                 }
 
                 function clickDayButton() {
@@ -140,7 +107,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     console.log(`Looking for ${targetMonth} ${targetDayNumber}`);
                     showStatus(`Looking for ${targetMonth} ${targetDayNumber}...`);
 
-                    // Try to find by day number first
                     const dayButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
                         .find(button => {
                             const dayNumberDiv = button.querySelector("div.day_number");
@@ -155,26 +121,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             clickPickleball();
                         }, 200);
                     } else {
-                        // Fallback: Try to find by full date text
-                        const fullDateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
-                            .find(button => {
-                                const dateText = button.textContent.trim();
-                                return dateText.includes(targetMonth) &&
-                                    dateText.includes(targetDayNumber) &&
-                                    button.offsetParent !== null;
-                            });
-
-                        if (fullDateButton) {
-                            fullDateButton.click();
-                            console.log(`✅ Clicked ${targetMonth} ${targetDayNumber} (fallback)`);
-                            showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
-                            setTimeout(() => {
-                                clickPickleball();
-                            }, 200);
-                        } else {
-                            showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
-                            alert(`Could not find the button for ${targetMonth} ${targetDayNumber}.`);
-                        }
+                        console.error(`❌ Button for ${targetMonth} ${targetDayNumber} not found.`);
+                        showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
+                        alert(`Button for ${targetMonth} ${targetDayNumber} not found.`);
                     }
                 }
 
@@ -197,13 +146,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function clickTimeSlot() {
                     if (index >= desiredTimes.length) {
-                        // After all time slots are selected, proceed to court selection
                         console.log("✅ All time slots selected. Proceeding to court selection...");
                         showStatus("✅ All time slots selected. Proceeding to court selection...");
 
                         setTimeout(() => {
-                            selectDesiredCourt(); // Call the court selection function
-                        }, 200); // Add a delay before proceeding
+                            selectDesiredCourt();
+                        }, 200);
                         return;
                     }
 
@@ -221,25 +169,10 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     }
 
                     index++;
-                    setTimeout(clickTimeSlot, 200); // Delay before selecting the next time slot
+                    setTimeout(clickTimeSlot, 200);
                 }
 
-                // IMPROVED COURT SELECTION FUNCTION
                 function selectDesiredCourt() {
-                    // Create a Map for court priorities
-                    // const courtPriorityMap = new Map([
-                    //     [0, "PICKLEBALL 2"],
-                    //     [1, "PICKLEBALL 4"],
-                    //     [2, "PICKLEBALL 8"],
-                    //     [3, "PICKLEBALL 9"],
-                    //     [4, "PICKLEBALL 3"],
-                    //     [5, "PICKLEBALL 6"],
-                    //     [6, "PICKLEBALL 7"],
-                    //     [7, "PICKLEBALL 1"],
-                    //     [8, "PICKLEBALL 5"],
-                    //     [9, "PICKLEBALL 10"]
-                    // ]);
-
                     const courtPriorityMap = new Map([
                         [0, "PICKLEBALL 4"],
                         [1, "PICKLEBALL 8"],
@@ -256,15 +189,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                     showStatus("🏟️ Selecting the best available court...");
 
-                    // Get all available court buttons
                     const courtButtons = Array.from(document.querySelectorAll("button"))
                         .filter(btn => {
                             const btnText = btn.textContent.trim().toUpperCase();
-                            // Check if the button text matches any value in the Map
                             return Array.from(courtPriorityMap.values()).includes(btnText) && !btn.disabled && btn.offsetParent !== null;
                         });
 
-                    // Sort the buttons based on the priority defined in the Map
                     courtButtons.sort((a, b) => {
                         const aText = a.textContent.trim().toUpperCase();
                         const bText = b.textContent.trim().toUpperCase();
@@ -276,13 +206,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     });
 
                     if (courtButtons.length > 0) {
-                        const selectedCourt = courtButtons[0]; // Pick the highest-priority court
+                        const selectedCourt = courtButtons[0];
                         const selectedCourtName = selectedCourt.textContent.trim();
                         selectedCourt.click();
                         console.log(`✅ Selected court: ${selectedCourtName}`);
                         showStatus(`✅ Selected court: ${selectedCourtName}`);
 
-                        // Add delay before proceeding to the next step
                         setTimeout(() => {
                             proceedAfterCourtSelection();
                         }, 500);
@@ -339,7 +268,6 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         console.log("✅ Clicked 'ADD' in modal");
                         showStatus("✅ Users added");
 
-                        // Try FINAL NEXT button after a pause
                         setTimeout(() => {
                             clickFinalNext();
                         }, 500);
@@ -380,9 +308,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     }
                 }
 
-                // Create UI buttons for scheduling or immediate booking
                 function createControlPanel() {
-                    // Remove existing panel if any
                     const existingPanel = document.getElementById("booking-control-panel");
                     if (existingPanel) existingPanel.remove();
 
@@ -398,29 +324,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     panel.style.zIndex = "9999";
                     panel.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
 
-                    // Title
                     const title = document.createElement("h3");
                     title.textContent = "Pickleball Booking";
                     title.style.margin = "0 0 10px 0";
                     title.style.padding = "0";
                     panel.appendChild(title);
-
-                    const bookNowBtn = document.createElement("button");
-                    bookNowBtn.textContent = "Book Now";
-                    bookNowBtn.style.display = "block";
-                    bookNowBtn.style.width = "100%";
-                    bookNowBtn.style.padding = "8px";
-                    bookNowBtn.style.marginBottom = "10px";
-                    bookNowBtn.style.backgroundColor = "#4CAF50";
-                    bookNowBtn.style.color = "white";
-                    bookNowBtn.style.border = "none";
-                    bookNowBtn.style.borderRadius = "5px";
-                    bookNowBtn.style.cursor = "pointer";
-                    bookNowBtn.addEventListener("click", () => {
-                        if (scheduledTimer) clearTimeout(scheduledTimer);
-                        startBookingProcess();
-                    });
-                    panel.appendChild(bookNowBtn);
 
                     const scheduleBtn = document.createElement("button");
                     scheduleBtn.textContent = "Schedule for 7 AM";
