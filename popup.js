@@ -153,7 +153,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
                         setTimeout(() => {
                             clickPickleball();
-                        }, 500);
+                        }, 200);
                     } else {
                         // Fallback: Try to find by full date text
                         const fullDateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
@@ -170,7 +170,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
                             setTimeout(() => {
                                 clickPickleball();
-                            }, 500);
+                            }, 200);
                         } else {
                             showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
                             alert(`Could not find the button for ${targetMonth} ${targetDayNumber}.`);
@@ -188,7 +188,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("✅ Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 500);
+                        }, 200);
                     } else {
                         showStatus("❌ Pickleball button not found!", true);
                         alert("❌ Pickleball button not found.");
@@ -203,7 +203,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             selectDesiredCourt(); // Call the court selection function
-                        }, 500); // Add a delay before proceeding
+                        }, 200); // Add a delay before proceeding
                         return;
                     }
 
@@ -221,7 +221,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     }
 
                     index++;
-                    setTimeout(clickTimeSlot, 400); // Delay before selecting the next time slot
+                    setTimeout(clickTimeSlot, 200); // Delay before selecting the next time slot
                 }
 
                 // IMPROVED COURT SELECTION FUNCTION
@@ -286,7 +286,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         // Add delay before proceeding to the next step
                         setTimeout(() => {
                             proceedAfterCourtSelection();
-                        }, 1000);
+                        }, 500);
                     } else {
                         console.error("❌ No available courts found based on priority.");
                         showStatus("❌ No available courts found!", true);
@@ -305,7 +305,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             addFriendByName();
-                        }, 800);
+                        }, 300);
                     } else {
                         showStatus("❌ NEXT button not found!", true);
                         alert("Couldn't proceed after court selection - NEXT button missing");
@@ -344,7 +344,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         setTimeout(() => {
                             clickFinalNext();
                         }, 500);
-                    }, 1000);
+                    }, 800);
                 }
 
                 function clickFinalNext() {
@@ -357,7 +357,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("➡️ Proceeding to book");
                         setTimeout(() => {
                             clickBookButton();
-                        }, 1000);
+                        }, 500);
                     } else {
                         showStatus("❌ Final NEXT button not found!", true);
                         alert("Couldn't find final NEXT button.");
