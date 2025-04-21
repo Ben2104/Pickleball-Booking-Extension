@@ -3,7 +3,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: () => {
-                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
+                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
                 const targetHour = 7; // Production time (7:00 AM)
@@ -29,28 +29,13 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     statusDiv.style.border = isError ? "2px solid #ff0000" : "2px solid #00aa00";
                 }
 
-                function calculateDelayUntilTargetTime(hours, minutes) {
-                    const now = new Date();
-                    let targetTime = new Date(now);
-                    targetTime.setHours(hours, minutes, 0, 0);
-
-                    if (now > targetTime) {
-                        targetTime.setDate(targetTime.getDate() + 1);
-                    }
-
-                    return {
-                        delayMs: targetTime - now,
-                        formattedTime: targetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    };
-                }
-
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
 
-                    const { delayMs, formattedTime } = calculateDelayUntilTargetTime(targetHour, targetMinute);
+                    console.log(`⏳ Booking scheduled for ${targetHour}:${targetMinute}`);
+                    showStatus(`⏰ Booking scheduled for ${targetHour}:${targetMinute}`);
 
-                    console.log(`⏳ Booking scheduled for ${formattedTime}`);
-                    showStatus(`⏰ Booking scheduled for ${formattedTime}`);
+                    const delayMs = 1000 * 60 * 60 * 24; // Example: 24 hours delay (adjust as needed)
 
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
@@ -137,7 +122,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("✅ Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 200);
+                        }, 100);
                     } else {
                         showStatus("❌ Pickleball button not found!", true);
                         alert("❌ Pickleball button not found.");
@@ -151,7 +136,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             selectDesiredCourt();
-                        }, 200);
+                        }, 50);
                         return;
                     }
 
@@ -169,7 +154,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     }
 
                     index++;
-                    setTimeout(clickTimeSlot, 200);
+                    setTimeout(clickTimeSlot, 100);
                 }
 
                 function selectDesiredCourt() {
@@ -214,7 +199,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             proceedAfterCourtSelection();
-                        }, 500);
+                        }, 200);
                     } else {
                         console.error("❌ No available courts found based on priority.");
                         showStatus("❌ No available courts found!", true);
@@ -233,7 +218,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             addFriendByName();
-                        }, 300);
+                        }, 100);
                     } else {
                         showStatus("❌ NEXT button not found!", true);
                         alert("Couldn't proceed after court selection - NEXT button missing");
@@ -271,7 +256,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         setTimeout(() => {
                             clickFinalNext();
                         }, 500);
-                    }, 800);
+                    }, 300);
                 }
 
                 function clickFinalNext() {
@@ -284,7 +269,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("➡️ Proceeding to book");
                         setTimeout(() => {
                             clickBookButton();
-                        }, 500);
+                        }, 200);
                     } else {
                         showStatus("❌ Final NEXT button not found!", true);
                         alert("Couldn't find final NEXT button.");
