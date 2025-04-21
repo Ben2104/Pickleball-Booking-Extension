@@ -330,6 +330,22 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     title.style.padding = "0";
                     panel.appendChild(title);
 
+                    const bookNowBtn = document.createElement("button");
+                    bookNowBtn.textContent = "Book Now";
+                    bookNowBtn.style.display = "block";
+                    bookNowBtn.style.width = "100%";
+                    bookNowBtn.style.padding = "8px";
+                    bookNowBtn.style.marginBottom = "10px";
+                    bookNowBtn.style.backgroundColor = "#4CAF50";
+                    bookNowBtn.style.color = "white";
+                    bookNowBtn.style.border = "none";
+                    bookNowBtn.style.borderRadius = "5px";
+                    bookNowBtn.style.cursor = "pointer";
+                    bookNowBtn.addEventListener("click", () => {
+                        if (scheduledTimer) clearTimeout(scheduledTimer);
+                        startBookingProcess();
+                    });
+                    panel.appendChild(bookNowBtn);
                     const scheduleBtn = document.createElement("button");
                     scheduleBtn.textContent = "Schedule for 7 AM";
                     scheduleBtn.style.display = "block";
