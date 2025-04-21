@@ -7,7 +7,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 let index = 0;
                 let scheduledTimer = null;
                 const targetHour = 7; // Production time (7:00 AM)
-                const targetMinute = 6;
+                const targetMinute = 0;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
