@@ -69,7 +69,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             clearTimeout(scheduledTimer);
                             scheduledTimer = null;
                             console.log("❌ Scheduled booking cancelled");
-                            showStatus("❌ Scheduled booking cancelled", true);
+                            showStatus("Scheduled booking cancelled", true);
                             cancelBtn.remove();
                         }
                     });
@@ -89,20 +89,20 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     if (pickleballBtn) {
                         pickleballBtn.click();
                         console.log("✅ Clicked Pickleball button");
-                        showStatus("✅ Selected Pickleball");
+                        showStatus(" Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
                         }, 50);
                     } else {
-                        showStatus("❌ Pickleball button not found!", true);
-                        alert("❌ Pickleball button not found.");
+                        showStatus(" Pickleball button not found!", true);
+                        alert(" Pickleball button not found.");
                     }
                 }
 
                 function clickTimeSlot() {
                     if (index >= desiredTimes.length) {
                         console.log("✅ All time slots selected. Proceeding to court selection...");
-                        showStatus("✅ All time slots selected. Proceeding to court selection...");
+                        showStatus(" All time slots selected. Proceeding to court selection...");
 
                         setTimeout(() => {
                             selectDesiredCourt();
@@ -117,10 +117,10 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     if (button && !button.disabled) {
                         button.click();
                         console.log(`✅ Clicked ${currentTime}`);
-                        showStatus(`✅ Trying time: ${currentTime}`);
+                        showStatus(` Trying time: ${currentTime}`);
                     } else {
                         console.warn(`⚠️ Button for "${currentTime}" not found or disabled.`);
-                        showStatus(`⚠️ Button for "${currentTime}" not found or disabled.`, true);
+                        showStatus(` Button for "${currentTime}" not found or disabled.`, true);
                     }
 
                     index++;
@@ -143,7 +143,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                     console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
 
-                    showStatus("🏟️ Selecting the best available court...");
+                    showStatus(" Selecting the best available court...");
 
                     const courtButtons = Array.from(document.querySelectorAll("button"))
                         .filter(btn => {
@@ -166,14 +166,14 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         const selectedCourtName = selectedCourt.textContent.trim();
                         selectedCourt.click();
                         console.log(`✅ Selected court: ${selectedCourtName}`);
-                        showStatus(`✅ Selected court: ${selectedCourtName}`);
+                        showStatus(` Selected court: ${selectedCourtName}`);
 
                         setTimeout(() => {
                             proceedAfterCourtSelection();
                         }, 200);
                     } else {
                         console.error("❌ No available courts found based on priority.");
-                        showStatus("❌ No available courts found!", true);
+                        showStatus(" No available courts found!", true);
                         alert("No courts are available based on the priority order. Please select a court manually.");
                     }
                 }
@@ -222,7 +222,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         addBtn.click();
                         console.log("✅ Clicked 'ADD' in modal");
-                        showStatus("✅ Users added");
+                        showStatus(" Users added");
 
                         setTimeout(() => {
                             clickFinalNext();
@@ -237,7 +237,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     if (nextBtn) {
                         nextBtn.click();
                         console.log("✅ Clicked final NEXT button");
-                        showStatus("➡️ Proceeding to book");
+                        showStatus(" Proceeding to book");
                         setTimeout(() => {
                             clickBookButton();
                         }, 200);
@@ -254,7 +254,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     if (bookBtn) {
                         bookBtn.click();
                         console.log("✅ Clicked BOOK button");
-                        showStatus("✅ BOOKING COMPLETE! 🎉");
+                        showStatus(" BOOKING COMPLETE!");
                         window.alert = function (message) {
                             console.log("🧪 Blocked alert:", message);
                         };
