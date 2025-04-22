@@ -3,7 +3,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: () => {
-                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
+                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
                 let index = 0;
                 let scheduledTimer = null;
                 const targetHour = 7; // Production time (7:00 AM)
@@ -79,37 +79,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function startBookingProcess() {
                     console.log("🚀 Starting booking automation");
-                    clickDayButton();
-                }
-
-                function clickDayButton() {
-                    const today = new Date();
-                    const targetDay = new Date(today);
-                    targetDay.setDate(today.getDate() + 7);
-                    const targetDayNumber = targetDay.getDate().toString();
-                    const targetMonth = targetDay.toLocaleString('default', { month: 'short' });
-
-                    console.log(`Looking for ${targetMonth} ${targetDayNumber}`);
-                    showStatus(`Looking for ${targetMonth} ${targetDayNumber}...`);
-
-                    const dayButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
-                        .find(button => {
-                            const dayNumberDiv = button.querySelector("div.day_number");
-                            return dayNumberDiv && dayNumberDiv.textContent.trim() === targetDayNumber && button.offsetParent !== null;
-                        });
-
-                    if (dayButton) {
-                        dayButton.click();
-                        console.log(`✅ Clicked ${targetMonth} ${targetDayNumber}`);
-                        showStatus(`✅ Selected ${targetMonth} ${targetDayNumber}`);
-                        setTimeout(() => {
-                            clickPickleball();
-                        }, 200);
-                    } else {
-                        console.error(`❌ Button for ${targetMonth} ${targetDayNumber} not found.`);
-                        showStatus(`❌ ${targetMonth} ${targetDayNumber} not found!`, true);
-                        alert(`Button for ${targetMonth} ${targetDayNumber} not found.`);
-                    }
+                    clickPickleball();
                 }
 
                 function clickPickleball() {
@@ -122,7 +92,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus("✅ Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 100);
+                        }, 50);
                     } else {
                         showStatus("❌ Pickleball button not found!", true);
                         alert("❌ Pickleball button not found.");
@@ -168,6 +138,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         [6, "PICKLEBALL 1"],
                         [7, "PICKLEBALL 5"],
                         [8, "PICKLEBALL 10"],
+                        [9, "PICKLEBALL 2"],
                     ]);
 
                     console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
