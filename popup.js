@@ -3,11 +3,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: () => {
-                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
+                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-                const targetHour = 7; // Production time (7:00 AM)
-                const targetMinute = 0;
+                const targetHour = 16; // Production time (7:00 AM)
+                const targetMinute = 42;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
@@ -31,18 +31,19 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
-
+                
                     console.log(`⏳ Booking scheduled for ${targetHour}:${targetMinute}`);
                     showStatus(`⏰ Booking scheduled for ${targetHour}:${targetMinute}`);
-
-                    const delayMs = 1000 * 60 * 60 * 24; // Example: 24 hours delay (adjust as needed)
-
+                
+                    const delayMs = 1000 * 10; // 10 seconds for testing
+                
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
                         showStatus("🚀 Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
-
+                
+                    console.log("✅ Timer set for scheduled booking");
                     addCancelButton();
                 }
 
@@ -79,7 +80,49 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function startBookingProcess() {
                     console.log("🚀 Starting booking automation");
-                    clickPickleball();
+                    clickDay(); // Start by selecting the day 7 days from now
+                }
+
+                function clickDay() {
+                    // Get the target date (7 days from today)
+                    const today = new Date();
+                    const nextWeek = new Date(today);
+                    nextWeek.setDate(today.getDate() + 7);
+                
+                    // Format the day name and day number
+                    const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+                    const dayName = dayNames[nextWeek.getDay()]; // e.g., "TUE"
+                    const dayNumber = nextWeek.getDate().toString(); // e.g., "29"
+                
+                    console.log(`🗓️ Looking for button with day: ${dayName} and number: ${dayNumber}`);
+                    showStatus(`Looking for date: ${dayName} ${dayNumber}...`);
+                
+                    // Find the button with matching day name and day number
+                    const dateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
+                        .find(button => {
+                            const dayNameDiv = button.querySelector("div.day_name");
+                            const dayNumberDiv = button.querySelector("div.day_number");
+                
+                            return (
+                                dayNameDiv &&
+                                dayNumberDiv &&
+                                dayNameDiv.textContent.trim().toUpperCase() === dayName &&
+                                dayNumberDiv.textContent.trim() === dayNumber &&
+                                button.offsetParent !== null // Ensure the button is visible
+                            );
+                        });
+                
+                    if (dateButton) {
+                        dateButton.click();
+                        console.log(`✅ Selected date: ${dayName} ${dayNumber}`);
+                        showStatus(`✅ Selected date: ${dayName} ${dayNumber}`);
+                        setTimeout(() => {
+                            clickPickleball();
+                        }, 300);
+                    } else {
+                        console.error(`❌ Button for ${dayName} ${dayNumber} not found.`);
+                        showStatus(`❌ ${dayName} ${dayNumber} not found!`, true);
+                    }
                 }
 
                 function clickPickleball() {
@@ -226,8 +269,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             clickFinalNext();
-                        }, 500);
-                    }, 300);
+                        }, 600);
+                    }, 500);
                 }
 
                 function clickFinalNext() {
