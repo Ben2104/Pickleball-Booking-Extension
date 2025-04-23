@@ -6,8 +6,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-                const targetHour = 17; // Production time (7:00 AM)
-                const targetMinute = 14;
+                const targetHour = 7; // Production time (7:00 AM)
+                const targetMinute = 0;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
@@ -42,20 +42,31 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
-
+                
                     const delayMs = calculateDelayUntilTargetTime(targetHour, targetMinute);
                     console.log(`⏳ Booking scheduled in ${delayMs / 1000} seconds`);
-                    showStatus(`⏰ Booking scheduled for ${targetHour}:${targetMinute}`);
-
+                
+                    const formattedTime = formatTime12Hour(targetHour, targetMinute);
+                    showStatus(`⏰ Booking scheduled for ${formattedTime}`);
+                
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
                         showStatus("🚀 Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
-
+                
                     console.log("✅ Timer set for scheduled booking");
                     addCancelButton();
                 }
+                
+                // Helper function to convert 24-hour time to 12-hour format with AM/PM
+                function formatTime12Hour(hour, minute) {
+                    const period = hour >= 12 ? "PM" : "AM";
+                    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+                    const paddedMinute = String(minute).padStart(2, "0");
+                    return `${hour12}:${paddedMinute} ${period}`;
+                }
+                
 
                 function addCancelButton() {
                     const existingBtn = document.getElementById("cancel-scheduled-booking");
