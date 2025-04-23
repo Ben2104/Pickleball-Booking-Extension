@@ -3,11 +3,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: () => {
-                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
+                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
                 let index = 0;
                 let scheduledTimer = null;
-                const targetHour = 19; // Production time (7:00 AM)
-                const targetMinute = 2;
+                const targetHour = 7; // Production time (7:00 AM)
+                const targetMinute = 0;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
