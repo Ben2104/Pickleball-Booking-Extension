@@ -7,7 +7,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 let index = 0;
                 // const desiredTimes = ["3-3:30pm", "3:30-4pm", "4-4:30pm", "4:30-5pm"];
                 let scheduledTimer = null;
-                const targetHour = 21; // Production time (7:00 AM)
+                const targetHour = 7; // Production time (7:00 AM)
                 const targetMinute = 0;
 
                 function showStatus(message, isError = false) {
