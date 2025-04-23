@@ -6,8 +6,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-                const targetHour = 7; // Production time (7:00 AM)
-                const targetMinute = 0;
+                const targetHour = 19; // Production time (7:00 AM)
+                const targetMinute = 2;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
@@ -108,7 +108,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     // Get the target date (7 days from today)
                     const today = new Date();
                     const nextWeek = new Date(today);
-                    nextWeek.setDate(today.getDate() + 7);
+                    nextWeek.setDate(today.getDate() + 6);
 
                     // Format the day name and day number
                     const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -156,7 +156,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus(" Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 200);
+                        }, 250);
                     } else {
                         showStatus(" Pickleball button not found!", true);
                         alert(" Pickleball button not found.");
