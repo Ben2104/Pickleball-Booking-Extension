@@ -6,8 +6,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 let index = 0;
                 let scheduledTimer = null;
-                const targetHour = 16; // Production time (7:00 AM)
-                const targetMinute = 42;
+                const targetHour = 17; // Production time (7:00 AM)
+                const targetMinute = 14;
 
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
@@ -28,21 +28,31 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     statusDiv.style.backgroundColor = isError ? "#ffcccc" : "#ccffcc";
                     statusDiv.style.border = isError ? "2px solid #ff0000" : "2px solid #00aa00";
                 }
+                function calculateDelayUntilTargetTime(hours, minutes) {
+                    const now = new Date();
+                    const targetTime = new Date(now);
+                    targetTime.setHours(hours, minutes, 0, 0);
+
+                    if (now > targetTime) {
+                        targetTime.setDate(targetTime.getDate() + 1); // Schedule for the next day
+                    }
+
+                    return targetTime - now; // Return delay in milliseconds
+                }
 
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
-                
-                    console.log(`⏳ Booking scheduled for ${targetHour}:${targetMinute}`);
+
+                    const delayMs = calculateDelayUntilTargetTime(targetHour, targetMinute);
+                    console.log(`⏳ Booking scheduled in ${delayMs / 1000} seconds`);
                     showStatus(`⏰ Booking scheduled for ${targetHour}:${targetMinute}`);
-                
-                    const delayMs = 1000 * 10; // 10 seconds for testing
-                
+
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
                         showStatus("🚀 Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
-                
+
                     console.log("✅ Timer set for scheduled booking");
                     addCancelButton();
                 }
@@ -88,21 +98,21 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     const today = new Date();
                     const nextWeek = new Date(today);
                     nextWeek.setDate(today.getDate() + 7);
-                
+
                     // Format the day name and day number
                     const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
                     const dayName = dayNames[nextWeek.getDay()]; // e.g., "TUE"
                     const dayNumber = nextWeek.getDate().toString(); // e.g., "29"
-                
+
                     console.log(`🗓️ Looking for button with day: ${dayName} and number: ${dayNumber}`);
                     showStatus(`Looking for date: ${dayName} ${dayNumber}...`);
-                
+
                     // Find the button with matching day name and day number
                     const dateButton = Array.from(document.querySelectorAll("button.ui.button.selectable.basic"))
                         .find(button => {
                             const dayNameDiv = button.querySelector("div.day_name");
                             const dayNumberDiv = button.querySelector("div.day_number");
-                
+
                             return (
                                 dayNameDiv &&
                                 dayNumberDiv &&
@@ -111,7 +121,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 button.offsetParent !== null // Ensure the button is visible
                             );
                         });
-                
+
                     if (dateButton) {
                         dateButton.click();
                         console.log(`✅ Selected date: ${dayName} ${dayNumber}`);
@@ -135,7 +145,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus(" Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 50);
+                        }, 200);
                     } else {
                         showStatus(" Pickleball button not found!", true);
                         alert(" Pickleball button not found.");
