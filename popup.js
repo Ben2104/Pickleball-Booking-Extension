@@ -5,8 +5,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
             func: () => {
                 const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
                 let index = 0;
+                // const desiredTimes = ["3-3:30pm", "3:30-4pm", "4-4:30pm", "4:30-5pm"];
                 let scheduledTimer = null;
-                const targetHour = 7; // Production time (7:00 AM)
+                const targetHour = 21; // Production time (7:00 AM)
                 const targetMinute = 0;
 
                 function showStatus(message, isError = false) {
@@ -108,7 +109,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     // Get the target date (7 days from today)
                     const today = new Date();
                     const nextWeek = new Date(today);
-                    nextWeek.setDate(today.getDate() + 6);
+                    nextWeek.setDate(today.getDate() + 7);
 
                     // Format the day name and day number
                     const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -156,7 +157,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         showStatus(" Selected Pickleball");
                         setTimeout(() => {
                             clickTimeSlot();
-                        }, 250);
+                        }, 100);
                     } else {
                         showStatus(" Pickleball button not found!", true);
                         alert(" Pickleball button not found.");
@@ -170,7 +171,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                         setTimeout(() => {
                             selectDesiredCourt();
-                        }, 50);
+                        }, 100);
                         return;
                     }
 
