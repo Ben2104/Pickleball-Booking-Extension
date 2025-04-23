@@ -47,11 +47,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     console.log(`⏳ Booking scheduled in ${delayMs / 1000} seconds`);
                 
                     const formattedTime = formatTime12Hour(targetHour, targetMinute);
-                    showStatus(`⏰ Booking scheduled for ${formattedTime}`);
+                    showStatus(` Booking scheduled for ${formattedTime}`);
                 
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
-                        showStatus("🚀 Running scheduled booking now...");
+                        showStatus(" Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
                 
