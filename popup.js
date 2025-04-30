@@ -4,14 +4,14 @@ document.getElementById("bookNow").addEventListener("click", () => {
             target: { tabId: tabs[0].id },
             func: () => {
                 // Configuration options
-                const desiredTimes = ["6-6:30pm", "6:30-7pm", "7-7:30pm", "7:30-8pm"];
+                const desiredTimes = ["7-7:30am", "7:30-8am", "8-8:30am", "8:30-9am"];
                 const targetHour = 7; // Target hour for scheduling (7:00 AM)
                 const targetMinute = 0;
-                
+
                 // Maximum number of booking retry attempts
                 let bookingAttempts = 0;
                 const MAX_BOOKING_ATTEMPTS = 3;
-                
+
                 // Court priority (highest to lowest)
                 const courtPriorityMap = new Map([
                     [0, "PICKLEBALL 2"],
@@ -25,7 +25,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     [8, "PICKLEBALL 5"],
                     [9, "PICKLEBALL 10"],
                 ]);
-                
+
                 // Global variables
                 let index = 0;
                 let scheduledTimer = null;
@@ -33,7 +33,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 // =====================================================
                 // UI and Status Functions
                 // =====================================================
-                
+
                 function showStatus(message, isError = false) {
                     let statusDiv = document.getElementById("booking-status");
                     if (!statusDiv) {
@@ -96,7 +96,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         startBookingProcess();
                     });
                     panel.appendChild(bookNowBtn);
-                    
+
                     // Schedule button
                     const scheduleBtn = document.createElement("button");
                     scheduleBtn.textContent = `Schedule for ${formatTime12Hour(targetHour, targetMinute)}`;
@@ -112,7 +112,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                     panel.appendChild(scheduleBtn);
 
                     document.body.appendChild(panel);
-                    
+
                     console.log("✅ Control panel created");
                 }
 
@@ -150,7 +150,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 // =====================================================
                 // Utility Functions
                 // =====================================================
-                
+
                 function calculateDelayUntilTargetTime(hours, minutes) {
                     const now = new Date();
                     const targetTime = new Date(now);
@@ -162,7 +162,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                     return targetTime - now; // Return delay in milliseconds
                 }
-                
+
                 function formatTime12Hour(hour, minute) {
                     const period = hour >= 12 ? "PM" : "AM";
                     const hour12 = hour % 12 === 0 ? 12 : hour % 12;
@@ -180,87 +180,226 @@ document.getElementById("bookNow").addEventListener("click", () => {
 
                 function scheduleBooking() {
                     if (scheduledTimer) clearTimeout(scheduledTimer);
-                
+
                     const delayMs = calculateDelayUntilTargetTime(targetHour, targetMinute);
                     const formattedTime = formatTime12Hour(targetHour, targetMinute);
-                    
+
                     const hours = Math.floor(delayMs / (1000 * 60 * 60));
                     const minutes = Math.floor((delayMs % (1000 * 60 * 60)) / (1000 * 60));
-                    
+
                     console.log(`⏳ Booking scheduled in ${hours}h ${minutes}m (${delayMs / 1000} seconds)`);
                     showStatus(`⏰ Booking scheduled for ${formattedTime}`);
-                
+
                     scheduledTimer = setTimeout(() => {
                         console.log(`🚀 Automatic booking triggered!`);
                         showStatus("🚀 Running scheduled booking now...");
                         startBookingProcess();
                     }, delayMs);
-                
+
                     console.log("✅ Timer set for scheduled booking");
                     addCancelButton();
                 }
 
                 // =====================================================
+                // NEW: Day Selection Function
+                // =====================================================
+
+                function getTargetDateInfo() {
+                    // Create a date object for 7 days from today
+                    const today = new Date();
+                    const targetDate = new Date(today);
+                    targetDate.setDate(today.getDate() + 7);
+
+                    // Get day of week as a 3-letter abbreviation
+                    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                    const dayName = dayNames[targetDate.getDay()];
+
+                    // Get day number with leading zero if needed
+                    const dayNumber = String(targetDate.getDate()).padStart(2, '0');
+
+                    return { dayName, dayNumber };
+                }
+
+                function clickDayButton() {
+                    const { dayName, dayNumber } = getTargetDateInfo();
+                    console.log(`🗓️ Looking for day button: ${dayName} ${dayNumber}`);
+                    showStatus(`🗓️ Selecting date: ${dayName} ${dayNumber}...`);
+
+                    // Try different ways to find the day button
+
+                    // Method 1: Find by exact button content
+                    const dayButtons = Array.from(document.querySelectorAll(".day-container button"));
+
+                    for (let btn of dayButtons) {
+                        const btnDayName = btn.querySelector(".day_name")?.textContent;
+                        const btnDayNumber = btn.querySelector(".day_number")?.textContent;
+
+                        if (btnDayName === dayName && btnDayNumber === dayNumber) {
+                            console.log(`✅ Found exact day button: ${dayName} ${dayNumber}`);
+                            btn.click();
+                            return true;
+                        }
+                    }
+
+                    // Method 2: Find by day number only if exact match failed
+                    for (let btn of dayButtons) {
+                        const btnDayNumber = btn.querySelector(".day_number")?.textContent;
+
+                        if (btnDayNumber === dayNumber) {
+                            console.log(`⚠️ Found day by number only: ${btnDayNumber}`);
+                            btn.click();
+                            return true;
+                        }
+                    }
+
+                    // Method 3: If buttons exist but desired day wasn't found, try using "Next Week" button first
+                    const nextWeekBtn = Array.from(document.querySelectorAll("button")).find(btn =>
+                        btn.textContent.includes("Next Week") || btn.textContent.includes("→")
+                    );
+
+                    if (nextWeekBtn && dayButtons.length > 0) {
+                        console.log("⚠️ Desired day not found. Clicking 'Next Week' button");
+                        nextWeekBtn.click();
+
+                        // Wait for page to update then try again
+                        setTimeout(() => {
+                            clickDayButton();
+                        }, 500);
+                        return true;
+                    }
+
+                    console.error(`❌ Could not find day button for ${dayName} ${dayNumber}`);
+                    showStatus(`❌ Day ${dayName} ${dayNumber} not found!`, true);
+                    return false;
+                }
+
+                // =====================================================
                 // Core Booking Process
                 // =====================================================
-                
+
                 function startBookingProcess() {
                     console.log("🚀 Starting booking automation");
                     showStatus("🚀 Starting booking process...");
                     bookingAttempts = 0; // Reset the counter at the start
-                    
+
                     // Organize the booking process into a clear flow
                     const bookingFlow = {
-                        // Step 1: Select Pickleball
-                        selectPickleball: function() {
+                        // Step 1: Select the day (7 days from today)
+                        selectDay: function () {
+                            if (clickDayButton()) {
+                                console.log("✅ Selected target day");
+                                // Use arrow function to preserve 'this' context
+                                setTimeout(() => this.selectPickleball(), 500);
+                            } else {
+                                console.error("❌ Failed to select target day");
+                                showStatus("❌ Date selection failed", true);
+
+                                // Try to continue anyway
+                                console.log("⚠️ Attempting to continue despite date selection failure");
+                                // Use arrow function to preserve 'this' context
+                                setTimeout(() => this.selectPickleball(), 1000);
+                            }
+                        },
+
+                        // Step 2: Select Pickleball
+                        selectPickleball: function () {
                             let pickleballBtn = findButton("PICKLEBALL") || findButton("PICKLEBALL", true);
                             if (pickleballBtn) {
                                 pickleballBtn.click();
                                 console.log("✅ Clicked Pickleball button");
                                 showStatus("✅ Selected Pickleball");
-                                setTimeout(this.selectTimeSlot, 700);
+                                // Use arrow function to preserve 'this' context
+                                setTimeout(() => this.selectTimeSlot(), 500);
                             } else {
                                 console.error("❌ Pickleball button not found");
                                 showStatus("❌ Pickleball button not found!", true);
+
+                                // If we can't find Pickleball button, attempt to go directly to time selection
+                                console.log("⚠️ Attempting to proceed directly to time slot selection");
+                                // Use arrow function to preserve 'this' context
+                                setTimeout(() => this.selectTimeSlot(), 500);
                             }
                         },
-                        
-                        // Step 2: Select Time Slot
-                        selectTimeSlot: function() {
+
+                        // Step 3: Select Time Slot
+                        selectTimeSlot: function () {
+                            console.log("🕒 Looking for available time slots...");
                             if (index >= desiredTimes.length) {
                                 console.log("✅ All time slots attempted. Proceeding to court selection...");
-                                showStatus("✅ All time slots attempted. Proceeding to court selection...");
-                                setTimeout(bookingFlow.selectCourt, 150);
+                                showStatus("✅ Attempted all time slots. Proceeding to court selection...");
+                                // Use arrow function to preserve 'this' context
+                                setTimeout(() => bookingFlow.selectCourt(), 300);
                                 return;
                             }
 
-                            const buttons = document.querySelectorAll("button");
-                            const currentTime = desiredTimes[index];
-                            
-                            // Faster button finding
-                            let button = null;
-                            for (let i = 0; i < buttons.length; i++) {
-                                if (buttons[i].textContent.trim() === currentTime && !buttons[i].disabled) {
-                                    button = buttons[i];
-                                    break;
+                            // Add debugging to see what's on the page
+                            console.log(`Found ${document.querySelectorAll("button").length} total buttons on page`);
+
+                            // Reduced delay for buttons to fully load (from 500ms to 400ms)
+                            setTimeout(() => {
+                                const buttons = document.querySelectorAll("button");
+                                const currentTime = desiredTimes[index];
+
+                                console.log(`🔍 Looking for time slot: "${currentTime}" (Attempt ${index + 1}/${desiredTimes.length})`);
+
+                                // Enhanced button finding logic with multiple methods
+                                let button = null;
+
+                                // Method 1: Direct text match (fast path)
+                                for (let i = 0; i < buttons.length; i++) {
+                                    if (buttons[i].textContent.trim() === currentTime && !buttons[i].disabled) {
+                                        button = buttons[i];
+                                        console.log(`✅ Found exact match for "${currentTime}"`);
+                                        break;
+                                    }
                                 }
-                            }
 
-                            if (button) {
-                                button.click();
-                                console.log(`✅ Clicked ${currentTime}`);
-                                showStatus(`✅ Selected time: ${currentTime}`);
-                            } else {
-                                console.warn(`⚠️ Button for "${currentTime}" not found or disabled. Trying next time slot.`);
-                                showStatus(`⚠️ Time ${currentTime} not available. Trying next...`, true);
-                            }
+                                // Method 2: Partial text match if exact match failed
+                                if (!button) {
+                                    for (let i = 0; i < buttons.length; i++) {
+                                        const btnText = buttons[i].textContent.trim();
+                                        if (btnText.includes(currentTime) && !buttons[i].disabled) {
+                                            button = buttons[i];
+                                            console.log(`✅ Found partial match for "${currentTime}": "${btnText}"`);
+                                            break;
+                                        }
+                                    }
+                                }
 
-                            index++;
-                            setTimeout(bookingFlow.selectTimeSlot, 150);
+                                // Method 3: Try matching with only the time component (most aggressive)
+                                if (!button) {
+                                    // Extract just the numeric time part (e.g., "7:30")
+                                    const timeMatch = currentTime.match(/(\d+(?:[-:]\d+)?)/);
+                                    if (timeMatch && timeMatch[0]) {
+                                        const timeOnly = timeMatch[0];
+                                        for (let i = 0; i < buttons.length; i++) {
+                                            if (buttons[i].textContent.includes(timeOnly) && !buttons[i].disabled) {
+                                                button = buttons[i];
+                                                console.log(`✅ Found time-only match for "${timeOnly}" in "${buttons[i].textContent.trim()}"`);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (button) {
+                                    button.click();
+                                    console.log(`✅ Clicked ${currentTime}`);
+                                    showStatus(`✅ Selected time: ${currentTime}`);
+                                } else {
+                                    console.warn(`⚠️ Button for "${currentTime}" not found or disabled.`);
+                                    showStatus(`⚠️ Time ${currentTime} not available`, true);
+                                }
+
+                                // Always increment index and try the next time slot
+                                index++;
+
+                                // Reduced delay between time slot attempts to 350ms (from 400ms)
+                                setTimeout(() => bookingFlow.selectTimeSlot(), 50);
+                            }, 100); // Reduced delay from 500ms to 400ms
                         },
-                        
-                        // Step 3: Select Court
-                        selectCourt: function() {
+                        // Step 4: Select Court
+                        selectCourt: function () {
                             console.log("🏟️ Prioritizing courts in this order:", Array.from(courtPriorityMap.values()));
                             showStatus("🏟️ Selecting the best available court...");
 
@@ -270,11 +409,11 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 const courtBtn = Array.from(document.querySelectorAll("button"))
                                     .find(btn => {
                                         const btnText = btn.textContent.trim().toUpperCase();
-                                        return btnText === targetCourtName && 
-                                               !btn.disabled && 
-                                               btn.offsetParent !== null;
+                                        return btnText === targetCourtName &&
+                                            !btn.disabled &&
+                                            btn.offsetParent !== null;
                                     });
-                                    
+
                                 if (courtBtn) {
                                     courtBtn.click();
                                     console.log(`✅ Selected priority #${i} court: ${targetCourtName}`);
@@ -287,9 +426,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             console.error("❌ No available courts found based on priority.");
                             showStatus("❌ No available courts found!", true);
                         },
-                        
-                        // Step 4: Proceed After Court Selection
-                        proceedAfterCourtSelection: function() {
+
+                        // Step 5: Proceed After Court Selection
+                        proceedAfterCourtSelection: function () {
                             const nextBtn = findButton("NEXT");
 
                             if (nextBtn) {
@@ -303,15 +442,15 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 alert("Couldn't proceed after court selection - NEXT button missing");
                             }
                         },
-                        
-                        // Step 5: Add Friend
-                        addFriendByName: function() {
+
+                        // Step 6: Add Friend
+                        addFriendByName: function () {
                             const openAddUsersBtn = findButton("ADD USERS");
 
                             if (!openAddUsersBtn) {
                                 console.error("❌ ADD USERS button not found");
                                 showStatus("❌ ADD USERS button not found!", true);
-                                
+
                                 // Try to continue anyway
                                 setTimeout(bookingFlow.proceedToFinalStep, 250);
                                 return;
@@ -327,7 +466,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 if (!addBtn) {
                                     console.error("❌ ADD button not found in modal");
                                     showStatus("❌ ADD button not found in modal!", true);
-                                    
+
                                     // Try to continue anyway
                                     setTimeout(bookingFlow.proceedToFinalStep, 250);
                                     return;
@@ -339,9 +478,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 setTimeout(bookingFlow.proceedToFinalStep, 400);
                             }, 400);
                         },
-                        
-                        // Step 6: Click Final Next
-                        proceedToFinalStep: function() {
+
+                        // Step 7: Click Final Next
+                        proceedToFinalStep: function () {
                             const nextBtn = findButton("NEXT");
 
                             if (nextBtn) {
@@ -352,42 +491,42 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             } else {
                                 console.error("❌ Final NEXT button not found");
                                 showStatus("❌ Final NEXT button not found!", true);
-                                
+
                                 // Try to find the book button directly
                                 setTimeout(bookingFlow.finalizeBooking, 250);
                             }
                         },
-                        
-                        // Step 7: Complete Booking
-                        finalizeBooking: function() {
+
+                        // Step 8: Complete Booking
+                        finalizeBooking: function () {
                             const bookBtn = findButton("BOOK", true);
 
                             if (bookBtn) {
                                 // Override default alerts BEFORE clicking the button
                                 const originalAlert = window.alert;
-                                window.alert = function(message) {
+                                window.alert = function (message) {
                                     console.log(`🔔 Alert detected: "${message}"`);
-                                    
+
                                     // Check if this is a booking failure alert
-                                    if (message.toLowerCase().includes("already booked") || 
+                                    if (message.toLowerCase().includes("already booked") ||
                                         message.toLowerCase().includes("unavailable") ||
                                         message.toLowerCase().includes("no longer available") ||
                                         message.toLowerCase().includes("conflict") ||
                                         message.toLowerCase().includes("reserved")) {
-                                        
+
                                         bookingAttempts++;
                                         console.log(`⚠️ Court already booked! Attempt ${bookingAttempts}/${MAX_BOOKING_ATTEMPTS}`);
                                         showStatus(`⚠️ Court already booked! Trying again (${bookingAttempts}/${MAX_BOOKING_ATTEMPTS})`, true);
-                                        
+
                                         // Restore original alert function
                                         window.alert = originalAlert;
-                                        
+
                                         if (bookingAttempts >= MAX_BOOKING_ATTEMPTS) {
                                             console.error(`❌ Failed after ${MAX_BOOKING_ATTEMPTS} attempts`);
                                             showStatus(`❌ Failed after ${MAX_BOOKING_ATTEMPTS} attempts`, true);
                                             return;
                                         }
-                                        
+
                                         // Click the "Select date and time" stepper to go back
                                         setTimeout(() => {
                                             bookingFlow.goBackToDateTimeSelection()
@@ -403,16 +542,16 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                         }, 300);
                                         return;
                                     }
-                                    
+
                                     // For successful booking or other alerts
                                     console.log("🧪 Alert:", message);
                                 };
-                                
+
                                 // Now click the book button
                                 bookBtn.click();
                                 console.log("✅ Clicked BOOK button");
                                 showStatus("⏳ Processing booking request...");
-                                
+
                                 // After a delay, if no alert was triggered, consider it a success
                                 setTimeout(() => {
                                     // Restore original alert function if it hasn't been restored already
@@ -420,7 +559,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                         window.alert = originalAlert;
                                         console.log("✅ BOOKING COMPLETE! 🎉");
                                         showStatus("✅ BOOKING COMPLETE! 🎉");
-                                        
+
                                         // Reset attempt counter for future bookings
                                         bookingAttempts = 0;
                                     }
@@ -431,12 +570,12 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 alert("Couldn't find BOOK button. Please complete booking manually.");
                             }
                         },
-                        
+
                         // Helper: Go Back to Date/Time Selection
-                        goBackToDateTimeSelection: function() {
+                        goBackToDateTimeSelection: function () {
                             return new Promise((resolve, reject) => {
                                 console.log("🔍 Looking for 'Select date and time' stepper...");
-                                
+
                                 // Method 1: Use the exact structure provided
                                 const exactStructure = document.querySelector('tr.header td h2.mb0.stepper_title');
                                 if (exactStructure && exactStructure.textContent.includes("Select date and time")) {
@@ -447,26 +586,26 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                     setTimeout(resolve, 500);
                                     return;
                                 }
-                                
+
                                 // Method 2: Look for TR with header class
                                 const dateTimeStepper = Array.from(document.querySelectorAll("tr.header"))
                                     .find(tr => {
                                         const stepperTitle = tr.querySelector("h2.mb0.stepper_title");
                                         return stepperTitle && stepperTitle.textContent.trim().includes("Select date and time");
                                     });
-                                
+
                                 if (dateTimeStepper) {
                                     console.log("✅ Found 'Select date and time' stepper via TR.header");
                                     showStatus("⏪ Going back to date/time selection...");
-                                    
+
                                     // Click on the stepper title or the whole row
                                     const clickTarget = dateTimeStepper.querySelector("h2.mb0.stepper_title") || dateTimeStepper;
                                     clickTarget.click();
-                                    
+
                                     setTimeout(resolve, 500);
                                     return;
                                 }
-                                
+
                                 // Method 3: Look directly for stepper title heading
                                 const alternativeTarget = document.querySelector("h2.mb0.stepper_title");
                                 if (alternativeTarget && alternativeTarget.textContent.includes("Select date and time")) {
@@ -476,16 +615,16 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                     setTimeout(resolve, 500);
                                     return;
                                 }
-                                
+
                                 // Method 4: Try finding by text content (most aggressive approach)
                                 const allElements = document.querySelectorAll("*");
                                 for (let i = 0; i < allElements.length; i++) {
                                     const elem = allElements[i];
-                                    if (elem.textContent && 
-                                        elem.textContent.includes("Select date and time") && 
+                                    if (elem.textContent &&
+                                        elem.textContent.includes("Select date and time") &&
                                         (elem.tagName === "H2" || elem.tagName === "TD" || elem.tagName === "TR")) {
                                         console.log("✅ Found element with 'Select date and time' text:", elem.tagName);
-                                        
+
                                         // Try to get to the tr.header
                                         const clickTarget = elem.closest("tr.header") || elem;
                                         clickTarget.click();
@@ -494,7 +633,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                         return;
                                     }
                                 }
-                                
+
                                 // Last resort: Look for any stepper elements
                                 const allSteppers = document.querySelectorAll(".stepper_title");
                                 if (allSteppers.length > 0) {
@@ -504,7 +643,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                     setTimeout(resolve, 500);
                                     return;
                                 }
-                                
+
                                 // If we get here, we couldn't find any suitable element
                                 console.error("❌ Could not find any 'Select date and time' stepper");
                                 showStatus("❌ Navigation failed! Please retry manually.", true);
@@ -512,9 +651,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             });
                         }
                     };
-                    
-                    // Begin the booking flow
-                    bookingFlow.selectPickleball();
+
+                    // Begin the booking flow with the new day selection step
+                    bookingFlow.selectDay();
                 }
 
                 // Initialize the booking interface
