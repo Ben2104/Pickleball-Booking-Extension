@@ -7,6 +7,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                 const desiredTimes = ["6-6:30pm", "6:30-7pm", "7-7:30pm", "7:30-8pm"];
                 const targetHour = 7; // Target hour for scheduling (7:00 AM)
                 const targetMinute = 0;
+                book = false
 
                 // Maximum number of booking retry attempts
                 let bookingAttempts = 0;
@@ -289,7 +290,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                             if (clickDayButton()) {
                                 console.log("✅ Selected target day");
                                 // Use arrow function to preserve 'this' context
-                                setTimeout(() => this.selectPickleball(), 500);
+                                setTimeout(() => this.selectPickleball(), 350);
                             } else {
                                 console.error("❌ Failed to select target day");
                                 showStatus("❌ Date selection failed", true);
@@ -309,7 +310,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 console.log("✅ Clicked Pickleball button");
                                 showStatus("✅ Selected Pickleball");
                                 // Use arrow function to preserve 'this' context
-                                setTimeout(() => this.selectTimeSlot(), 500);
+                                setTimeout(() => this.selectTimeSlot(), 350);
                             } else {
                                 console.error("❌ Pickleball button not found");
                                 showStatus("❌ Pickleball button not found!", true);
@@ -328,7 +329,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 console.log("✅ All time slots attempted. Proceeding to court selection...");
                                 showStatus("✅ Attempted all time slots. Proceeding to court selection...");
                                 // Use arrow function to preserve 'this' context
-                                setTimeout(() => bookingFlow.selectCourt(), 300);
+                                setTimeout(() => bookingFlow.selectCourt(), 250);
                                 return;
                             }
 
@@ -395,8 +396,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 index++;
 
                                 // Reduced delay between time slot attempts to 350ms (from 400ms)
-                                setTimeout(() => bookingFlow.selectTimeSlot(), 50);
-                            }, 100); // Reduced delay from 500ms to 400ms
+                                setTimeout(() => bookingFlow.selectTimeSlot(), 35);
+                            }, 70); // Reduced delay from 500ms to 400ms
                         },
                         // Step 4: Select Court
                         selectCourt: function () {
@@ -435,7 +436,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 nextBtn.click();
                                 console.log("✅ Clicked NEXT after court selection");
                                 showStatus("✅ Court selected. Adding users...");
-                                setTimeout(bookingFlow.addFriendByName, 250);
+                                setTimeout(bookingFlow.addFriendByName, 200);
                             } else {
                                 console.error("❌ NEXT button not found");
                                 showStatus("❌ NEXT button not found!", true);
@@ -452,7 +453,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 showStatus("❌ ADD USERS button not found!", true);
 
                                 // Try to continue anyway
-                                setTimeout(bookingFlow.proceedToFinalStep, 250);
+                                setTimeout(bookingFlow.proceedToFinalStep, 200);
                                 return;
                             }
 
@@ -475,8 +476,8 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 addBtn.click();
                                 console.log("✅ Clicked 'ADD' in modal");
                                 showStatus("✅ Users added successfully");
-                                setTimeout(bookingFlow.proceedToFinalStep, 400);
-                            }, 400);
+                                setTimeout(bookingFlow.proceedToFinalStep, 230);
+                            }, 200);
                         },
 
                         // Step 7: Click Final Next
@@ -487,7 +488,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 nextBtn.click();
                                 console.log("✅ Clicked final NEXT button");
                                 showStatus("➡️ Proceeding to final booking step...");
-                                setTimeout(bookingFlow.finalizeBooking, 400);
+                                setTimeout(bookingFlow.finalizeBooking, 250);
                             } else {
                                 console.error("❌ Final NEXT button not found");
                                 showStatus("❌ Final NEXT button not found!", true);
@@ -501,7 +502,9 @@ document.getElementById("bookNow").addEventListener("click", () => {
                         finalizeBooking: function () {
                             const bookBtn = findButton("BOOK", true);
 
-                            if (bookBtn) {
+                            bookBtn.click();
+                            book = true;
+                            if (book) {
                                 // Override default alerts BEFORE clicking the button
                                 const originalAlert = window.alert;
                                 window.alert = function (message) {
@@ -548,7 +551,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
                                 };
 
                                 // Now click the book button
-                                bookBtn.click();
+                                // bookBtn.click();
                                 console.log("✅ Clicked BOOK button");
                                 showStatus("⏳ Processing booking request...");
 
