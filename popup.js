@@ -4,7 +4,7 @@ document.getElementById("bookNow").addEventListener("click", () => {
             target: { tabId: tabs[0].id },
             func: () => {
                 // Configuration options
-                const desiredTimes = ["6-6:30pm", "6:30-7pm", "7-7:30pm", "7:30-8pm"];
+                const desiredTimes = ["6:30-7pm", "7-7:30pm", "7:30-8pm", "8-8:30pm"];
                 const targetHour = 7; // Target hour for scheduling (7:00 AM)
                 const targetMinute = 0;
                 book = false
