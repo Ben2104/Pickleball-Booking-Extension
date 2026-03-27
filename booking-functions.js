@@ -1,0 +1,1319 @@
+(function () {
+    if (window.PickleballBooking) {
+        return;
+    }
+
+    const CONFIG = {
+        desiredTimes: ["5:30-6:30pm", "6:30-7:00pm", "7:00-7:30pm", "7:30-8:00pm"], 
+        targetHour: null,
+        targetMinute: null,
+        countdownMessageXPath: "//div[contains(text(),'Booking for this day will open in')]",
+        countdownHourXPath: "(//div[contains(@class,'Countdown')]//td)[1]",
+        countdownMinuteXPath: "(//div[contains(@class,'Countdown')]//td)[3]",
+        countdownSecondXPath: "(//div[contains(@class,'Countdown')]//td)[5]",
+        countdownInitialDelayMs: 1000,
+        countdownPollMs: 200,
+        timeSlotSettlePollMs: 120,
+        timeSlotSettleTimeoutMs: 2000,
+        actionDelayMs: 250,
+        MAX_BOOKING_ATTEMPTS: 3,
+        courtPriority: [
+            "PICKLEBALL 4",
+            "PICKLEBALL 2",
+            "PICKLEBALL 1",
+            "PICKLEBALL 6",
+            "PICKLEBALL 3",
+            "PICKLEBALL 9",
+            "PICKLEBALL 7",
+            "PICKLEBALL 8",
+            "PICKLEBALL 5",
+            "PICKLEBALL 10",
+        ],
+    };
+
+    const state = {
+        scheduledTimer: null,
+        runPromise: null,
+        waitCancelled: false,
+        desiredTimeIndex: 0,
+        bookingAttempts: 0,
+        desiredTimes: [...CONFIG.desiredTimes],
+        desiredRangeStartInput: null,
+        desiredRangeEndInput: null,
+        desiredRangeMeridiemSelect: null,
+        desiredTimesPreview: null,
+        scheduleHour: CONFIG.targetHour,
+        scheduleMinute: CONFIG.targetMinute,
+        scheduleHourInput: null,
+        scheduleMinuteInput: null,
+        panel: null,
+        statusText: null,
+        modeText: null,
+        countdownText: null,
+        countdownLabel: null,
+    };
+
+    function wait(ms) {
+        return new Promise(resolve => {
+            window.setTimeout(resolve, ms);
+        });
+    }
+
+    function evaluateXPath(xpath, resultType) {
+        return document.evaluate(xpath, document, null, resultType, null);
+    }
+
+    function getXPathNode(xpath) {
+        return evaluateXPath(xpath, XPathResult.FIRST_ORDERED_NODE_TYPE).singleNodeValue;
+    }
+
+    function getXPathCount(xpath) {
+        return evaluateXPath(xpath, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE).snapshotLength;
+    }
+
+    function getXPathText(xpath) {
+        const node = getXPathNode(xpath);
+        return node && node.textContent ? node.textContent.trim() : "";
+    }
+
+    function createElement(tagName, className, textContent) {
+        const element = document.createElement(tagName);
+        if (className) {
+            element.className = className;
+        }
+        if (typeof textContent === "string") {
+            element.textContent = textContent;
+        }
+        return element;
+    }
+
+    function applyButtonStyle(button, tone) {
+        const tones = {
+            primary: {
+                background: "linear-gradient(135deg, #0f766e, #115e59)",
+                color: "#ffffff",
+                boxShadow: "0 12px 22px rgba(15, 118, 110, 0.22)",
+            },
+            secondary: {
+                background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+                color: "#1d4ed8",
+                boxShadow: "none",
+            },
+            danger: {
+                background: "linear-gradient(135deg, #fca5a5, #ef4444)",
+                color: "#ffffff",
+                boxShadow: "none",
+            },
+        };
+
+        const selectedTone = tones[tone];
+        Object.assign(button.style, {
+            border: "0",
+            borderRadius: "14px",
+            padding: "12px 14px",
+            fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
+            fontSize: "13px",
+            fontWeight: "700",
+            cursor: "pointer",
+            transition: "transform 120ms ease, opacity 120ms ease",
+            ...selectedTone,
+        });
+
+        button.addEventListener("mouseenter", () => {
+            button.style.transform = "translateY(-1px)";
+        });
+
+        button.addEventListener("mouseleave", () => {
+            button.style.transform = "translateY(0)";
+        });
+    }
+
+    function ensurePanel() {
+        if (state.panel && document.body.contains(state.panel)) {
+            return;
+        }
+
+        const existing = document.getElementById("pickleball-booking-panel");
+        if (existing) {
+            existing.remove();
+        }
+
+        const panel = createElement("section");
+        panel.id = "pickleball-booking-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            right: "20px",
+            bottom: "20px",
+            width: "340px",
+            zIndex: "2147483647",
+            borderRadius: "22px",
+            overflow: "hidden",
+            color: "#183454",
+            fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
+            background: "linear-gradient(155deg, rgba(245, 248, 255, 0.96), rgba(237, 247, 239, 0.96))",
+            border: "1px solid rgba(24, 52, 84, 0.12)",
+            boxShadow: "0 24px 48px rgba(24, 52, 84, 0.22)",
+            backdropFilter: "blur(10px)",
+        });
+
+        const header = createElement("div");
+        Object.assign(header.style, {
+            padding: "18px 18px 14px",
+            borderBottom: "1px solid rgba(24, 52, 84, 0.08)",
+            background: "linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(29, 78, 216, 0.12))",
+        });
+
+        const eyebrow = createElement("div", null, "Pickleball Booker");
+        Object.assign(eyebrow.style, {
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "6px 10px",
+            borderRadius: "999px",
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#1d4ed8",
+            background: "rgba(219, 234, 254, 0.9)",
+        });
+
+        const title = createElement("h3", null, "Countdown-aware booking");
+        Object.assign(title.style, {
+            margin: "14px 0 8px",
+            fontSize: "20px",
+            lineHeight: "1.1",
+        });
+
+        const intro = createElement("p", null, "The assistant waits for the site countdown when it is visible, then runs the booking flow.");
+        Object.assign(intro.style, {
+            margin: "0",
+            color: "#5d7085",
+            fontSize: "13px",
+            lineHeight: "1.5",
+        });
+
+        header.append(eyebrow, title, intro);
+
+        const body = createElement("div");
+        Object.assign(body.style, {
+            padding: "16px 18px 18px",
+            display: "grid",
+            gap: "12px",
+        });
+
+        const desiredRangeFields = createElement("div");
+        Object.assign(desiredRangeFields.style, {
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 96px",
+            gap: "10px",
+        });
+
+        const desiredStartField = createPanelInput("Start", "7");
+        const desiredEndField = createPanelInput("End", "9");
+        const meridiemField = createPanelSelect("AM or PM", ["AM", "PM"]);
+        desiredStartField.input.value = "7";
+        desiredEndField.input.value = "9";
+        meridiemField.select.value = "AM";
+        desiredStartField.input.addEventListener("input", () => {
+            syncDesiredTimesFromInput();
+        });
+        desiredEndField.input.addEventListener("input", () => {
+            syncDesiredTimesFromInput();
+        });
+        meridiemField.select.addEventListener("change", () => {
+            syncDesiredTimesFromInput();
+        });
+        desiredRangeFields.append(
+            desiredStartField.wrapper,
+            desiredEndField.wrapper,
+            meridiemField.wrapper
+        );
+
+        const desiredTimesPreview = createPreviewCard("Generated Slots", state.desiredTimes.join(", "));
+
+        const scheduleFields = createElement("div");
+        Object.assign(scheduleFields.style, {
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "10px",
+        });
+
+        const hourField = createPanelInput("Hour", "6");
+        const minuteField = createPanelInput("Minutes", "59");
+        hourField.input.value = String(state.scheduleHour);
+        minuteField.input.value = String(state.scheduleMinute).padStart(2, "0");
+        scheduleFields.append(hourField.wrapper, minuteField.wrapper);
+
+        const statusCard = createElement("div");
+        Object.assign(statusCard.style, {
+            padding: "14px",
+            borderRadius: "16px",
+            background: "rgba(255, 255, 255, 0.78)",
+            border: "1px solid rgba(24, 52, 84, 0.08)",
+            display: "grid",
+            gap: "10px",
+        });
+
+        const modeRow = createLabelValueRow("Mode", "Idle");
+        const countdownRow = createLabelValueRow("Countdown", "Not started");
+        const statusRow = createLabelValueRow("Status", "Assistant ready.");
+        statusCard.append(modeRow.row, countdownRow.row, statusRow.row);
+
+        const buttonGrid = createElement("div");
+        Object.assign(buttonGrid.style, {
+            display: "grid",
+            gap: "10px",
+        });
+
+        const startButton = createElement("button", null, "Start Now");
+        applyButtonStyle(startButton, "primary");
+        startButton.addEventListener("click", () => {
+            api.startImmediate();
+        });
+
+        const scheduleButton = createElement("button", null, "Schedule Booking");
+        applyButtonStyle(scheduleButton, "secondary");
+        scheduleButton.addEventListener("click", () => {
+            api.scheduleBooking();
+        });
+
+        const cancelButton = createElement("button", null, "Cancel Wait or Schedule");
+        applyButtonStyle(cancelButton, "danger");
+        cancelButton.addEventListener("click", () => {
+            api.cancelPendingWork();
+        });
+
+        buttonGrid.append(startButton, scheduleButton, cancelButton);
+        body.append(desiredRangeFields, desiredTimesPreview.wrapper, scheduleFields, statusCard, buttonGrid);
+        panel.append(header, body);
+        document.body.appendChild(panel);
+
+        state.panel = panel;
+        state.desiredRangeStartInput = desiredStartField.input;
+        state.desiredRangeEndInput = desiredEndField.input;
+        state.desiredRangeMeridiemSelect = meridiemField.select;
+        state.desiredTimesPreview = desiredTimesPreview.value;
+        state.scheduleHourInput = hourField.input;
+        state.scheduleMinuteInput = minuteField.input;
+        state.modeText = modeRow.value;
+        state.countdownText = countdownRow.value;
+        state.statusText = statusRow.value;
+        state.countdownLabel = countdownRow.row;
+        updateDesiredTimesPreview();
+    }
+
+    function createPanelSelect(label, options) {
+        const wrapper = createElement("label");
+        Object.assign(wrapper.style, {
+            display: "grid",
+            gap: "6px",
+        });
+
+        const labelElement = createElement("div", null, label);
+        Object.assign(labelElement.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        const select = document.createElement("select");
+        Object.assign(select.style, {
+            width: "100%",
+            border: "1px solid rgba(24, 52, 84, 0.12)",
+            borderRadius: "12px",
+            padding: "11px 12px",
+            fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
+            fontSize: "14px",
+            color: "#183454",
+            background: "#ffffff",
+            appearance: "none",
+        });
+
+        options.forEach(optionValue => {
+            const option = document.createElement("option");
+            option.value = optionValue;
+            option.textContent = optionValue;
+            select.appendChild(option);
+        });
+
+        wrapper.append(labelElement, select);
+        return { wrapper, select };
+    }
+
+    function createPanelInput(label, placeholder) {
+        const wrapper = createElement("label");
+        Object.assign(wrapper.style, {
+            display: "grid",
+            gap: "6px",
+        });
+
+        const labelElement = createElement("div", null, label);
+        Object.assign(labelElement.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.inputMode = "numeric";
+        input.placeholder = placeholder;
+        Object.assign(input.style, {
+            width: "100%",
+            border: "1px solid rgba(24, 52, 84, 0.12)",
+            borderRadius: "12px",
+            padding: "11px 12px",
+            fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
+            fontSize: "14px",
+            color: "#183454",
+            background: "#ffffff",
+        });
+
+        wrapper.append(labelElement, input);
+        return { wrapper, input };
+    }
+
+    function createPreviewCard(label, initialValue) {
+        const wrapper = createElement("div");
+        Object.assign(wrapper.style, {
+            display: "grid",
+            gap: "6px",
+        });
+
+        const labelElement = createElement("div", null, label);
+        Object.assign(labelElement.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        const value = createElement("div", null, initialValue);
+        Object.assign(value.style, {
+            minHeight: "62px",
+            border: "1px solid rgba(24, 52, 84, 0.12)",
+            borderRadius: "12px",
+            padding: "11px 12px",
+            background: "#ffffff",
+            fontSize: "13px",
+            lineHeight: "1.5",
+            color: "#183454",
+            whiteSpace: "normal",
+            wordBreak: "break-word",
+        });
+
+        wrapper.append(labelElement, value);
+        return { wrapper, value };
+    }
+
+    function createLabelValueRow(label, initialValue) {
+        const row = createElement("div");
+        Object.assign(row.style, {
+            display: "grid",
+            gap: "4px",
+        });
+
+        const labelElement = createElement("div", null, label);
+        Object.assign(labelElement.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        const value = createElement("div", null, initialValue);
+        Object.assign(value.style, {
+            fontSize: "14px",
+            fontWeight: "700",
+            color: "#183454",
+            lineHeight: "1.4",
+        });
+
+        row.append(labelElement, value);
+        return { row, value };
+    }
+
+    function setMode(message) {
+        ensurePanel();
+        state.modeText.textContent = message;
+    }
+
+    function setCountdown(message, tone = "neutral") {
+        ensurePanel();
+        state.countdownText.textContent = message;
+        const colors = {
+            neutral: "#183454",
+            info: "#1d4ed8",
+            success: "#166534",
+            warning: "#b45309",
+            error: "#b91c1c",
+        };
+        state.countdownText.style.color = colors[tone];
+    }
+
+    function setStatus(message, tone = "neutral") {
+        ensurePanel();
+        state.statusText.textContent = message;
+        const styles = {
+            neutral: { color: "#183454" },
+            info: { color: "#1d4ed8" },
+            success: { color: "#166534" },
+            warning: { color: "#b45309" },
+            error: { color: "#b91c1c" },
+        };
+        Object.assign(state.statusText.style, styles[tone]);
+    }
+
+    function formatTime12Hour(hour, minute) {
+        const period = hour >= 12 ? "PM" : "AM";
+        const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+        return `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
+    }
+
+    function calculateDelayUntilTargetTime(hours, minutes) {
+        const now = new Date();
+        const targetTime = new Date(now);
+        targetTime.setHours(hours, minutes, 0, 0);
+
+        if (now > targetTime) {
+            targetTime.setDate(targetTime.getDate() + 1);
+        }
+
+        return targetTime.getTime() - now.getTime();
+    }
+
+    function syncScheduleTimeFromInputs() {
+        if (!state.scheduleHourInput || !state.scheduleMinuteInput) {
+            return true;
+        }
+
+        const hourText = state.scheduleHourInput.value.trim();
+        const minuteText = state.scheduleMinuteInput.value.trim();
+
+        if (!hourText || !minuteText) {
+            setStatus("Enter both hour and minutes before scheduling.", "error");
+            return false;
+        }
+
+        const hour = Number.parseInt(hourText, 10);
+        const minute = Number.parseInt(minuteText, 10);
+
+        if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+            setStatus("Hour must be a number from 0 to 23.", "error");
+            return false;
+        }
+
+        if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
+            setStatus("Minutes must be a number from 0 to 59.", "error");
+            return false;
+        }
+
+        state.scheduleHour = hour;
+        state.scheduleMinute = minute;
+        state.scheduleHourInput.value = String(hour);
+        state.scheduleMinuteInput.value = String(minute).padStart(2, "0");
+        return true;
+    }
+
+    function updateDesiredTimesPreview(message = null, tone = "neutral") {
+        if (!state.desiredTimesPreview) {
+            return;
+        }
+
+        state.desiredTimesPreview.textContent = message || state.desiredTimes.join(", ");
+        const colors = {
+            neutral: "#183454",
+            success: "#166534",
+            warning: "#b45309",
+            error: "#b91c1c",
+        };
+        state.desiredTimesPreview.style.color = colors[tone];
+    }
+
+    function parseHalfHourTime(value) {
+        const cleaned = String(value || "").trim();
+        const match = cleaned.match(/^(\d{1,2})(?::(00|30))?$/);
+        if (!match) {
+            return null;
+        }
+
+        const hour = Number.parseInt(match[1], 10);
+        const minute = match[2] ? Number.parseInt(match[2], 10) : 0;
+        if (hour < 1 || hour > 12) {
+            return null;
+        }
+
+        return { hour, minute };
+    }
+
+    function convertToMinutesWithinPeriod(time) {
+        const normalizedHour = time.hour % 12;
+        return normalizedHour * 60 + time.minute;
+    }
+
+    function formatSlotBoundary(totalMinutes) {
+        const hour24 = Math.floor(totalMinutes / 60);
+        const minute = totalMinutes % 60;
+        let hour12 = hour24 % 12;
+        if (hour12 === 0) {
+            hour12 = 12;
+        }
+
+        return minute === 0 ? String(hour12) : `${hour12}:${String(minute).padStart(2, "0")}`;
+    }
+
+    function generateDesiredTimeSlots(startInput, endInput, meridiem) {
+        const start = parseHalfHourTime(startInput);
+        const end = parseHalfHourTime(endInput);
+        if (!start || !end) {
+            return { error: "Use hour or half-hour values like 7 or 7:30." };
+        }
+
+        const startMinutes = convertToMinutesWithinPeriod(start);
+        const endMinutes = convertToMinutesWithinPeriod(end);
+        if (endMinutes <= startMinutes) {
+            return { error: "End time must be later than start time." };
+        }
+
+        const slots = [];
+        for (let cursor = startMinutes; cursor < endMinutes; cursor += 30) {
+            const next = cursor + 30;
+            if (next > endMinutes) {
+                return { error: "Booking range must fit 30-minute increments." };
+            }
+
+            slots.push(`${formatSlotBoundary(cursor)}-${formatSlotBoundary(next)}${meridiem}`);
+        }
+
+        if (!slots.length) {
+            return { error: "Enter a booking range that creates at least one 30-minute slot." };
+        }
+
+        return { slots };
+    }
+
+    function syncDesiredTimesFromInput() {
+        if (!state.desiredRangeStartInput || !state.desiredRangeEndInput || !state.desiredRangeMeridiemSelect) {
+            return true;
+        }
+
+        const result = generateDesiredTimeSlots(
+            state.desiredRangeStartInput.value,
+            state.desiredRangeEndInput.value,
+            state.desiredRangeMeridiemSelect.value
+        );
+        if (result.error) {
+            updateDesiredTimesPreview(result.error, "error");
+            setStatus(result.error, "error");
+            return false;
+        }
+
+        state.desiredTimes = result.slots;
+        updateDesiredTimesPreview(result.slots.join(", "), "success");
+        return true;
+    }
+
+    function isVisibleButton(button) {
+        return !!button && !button.disabled && button.offsetParent !== null;
+    }
+
+    function normalizeText(value) {
+        return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function parseTimePart(value) {
+        const cleaned = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+        const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?(AM|PM)?$/);
+        if (!match) {
+            return null;
+        }
+
+        return {
+            hour: match[1],
+            minute: match[2] || "00",
+            meridiem: match[3] || "",
+        };
+    }
+
+    function formatCanonicalTimePart(part) {
+        if (!part) {
+            return "";
+        }
+
+        return part.minute === "00" ? part.hour : `${part.hour}:${part.minute}`;
+    }
+
+    function canonicalizeTimeSlotLabel(value) {
+        const cleaned = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+        if (!cleaned.includes("-")) {
+            return cleaned;
+        }
+
+        const segments = cleaned.split("-");
+        if (segments.length !== 2) {
+            return cleaned;
+        }
+
+        const startPart = parseTimePart(segments[0]);
+        const endPart = parseTimePart(segments[1]);
+        if (!startPart || !endPart) {
+            return cleaned;
+        }
+
+        const meridiem = endPart.meridiem || startPart.meridiem;
+        return `${formatCanonicalTimePart(startPart)}-${formatCanonicalTimePart(endPart)}${meridiem}`;
+    }
+
+    function findButton(criteria, partialMatch = false) {
+        const normalizedCriteria = criteria.trim().toUpperCase();
+        return Array.from(document.querySelectorAll("button")).find(button => {
+            if (!isVisibleButton(button)) {
+                return false;
+            }
+
+            const text = button.textContent ? button.textContent.trim().toUpperCase() : "";
+            return partialMatch ? text.includes(normalizedCriteria) : text === normalizedCriteria;
+        }) || null;
+    }
+
+    function getButtonStateSignature(button) {
+        if (!button) {
+            return "missing";
+        }
+
+        return JSON.stringify({
+            className: button.className || "",
+            ariaPressed: button.getAttribute("aria-pressed") || "",
+            ariaSelected: button.getAttribute("aria-selected") || "",
+            disabled: button.disabled,
+            dataState: button.getAttribute("data-state") || "",
+            text: normalizeText(button.textContent),
+        });
+    }
+
+    function getVisibleTimeSlotButtonsSnapshot() {
+        return Array.from(document.querySelectorAll("button"))
+            .filter(isVisibleButton)
+            .map(button => canonicalizeTimeSlotLabel(button.textContent))
+            .filter(Boolean)
+            .join("|");
+    }
+
+    function findTimeSlotButton(label) {
+        const buttons = Array.from(document.querySelectorAll("button")).filter(isVisibleButton);
+        const normalizedLabel = canonicalizeTimeSlotLabel(label);
+
+        let matchedButton = buttons.find(button => canonicalizeTimeSlotLabel(button.textContent) === normalizedLabel) || null;
+        if (matchedButton) {
+            return matchedButton;
+        }
+
+        matchedButton = buttons.find(button => canonicalizeTimeSlotLabel(button.textContent).includes(normalizedLabel)) || null;
+        if (matchedButton) {
+            return matchedButton;
+        }
+
+        return matchedButton;
+    }
+
+    async function waitForTimeSlotSelection(label, beforeSnapshot, beforeSignature) {
+        const startedAt = Date.now();
+
+        while (Date.now() - startedAt < CONFIG.timeSlotSettleTimeoutMs) {
+            const currentButton = findTimeSlotButton(label);
+            const currentSnapshot = getVisibleTimeSlotButtonsSnapshot();
+            const currentSignature = getButtonStateSignature(currentButton);
+
+            if (!currentButton) {
+                return { settled: true, reason: "button_missing_after_click" };
+            }
+
+            if (currentButton.disabled) {
+                return { settled: true, reason: "button_disabled" };
+            }
+
+            if (currentSignature !== beforeSignature) {
+                return { settled: true, reason: "button_state_changed" };
+            }
+
+            if (currentSnapshot !== beforeSnapshot) {
+                return { settled: true, reason: "slot_list_changed" };
+            }
+
+            await wait(CONFIG.timeSlotSettlePollMs);
+        }
+
+        return { settled: false, reason: "timeout" };
+    }
+
+    async function clickTimeSlot(label) {
+        const targetButton = findTimeSlotButton(label);
+        if (!targetButton) {
+            setStatus(`Time ${label} is unavailable.`, "warning");
+            return { attempted: true, clicked: false, label, reason: "not_found" };
+        }
+
+        const beforeSnapshot = getVisibleTimeSlotButtonsSnapshot();
+        const beforeSignature = getButtonStateSignature(targetButton);
+        const originalAlert = window.alert;
+        let alertMessage = "";
+        let alertSeen = false;
+
+        window.alert = message => {
+            alertSeen = true;
+            alertMessage = String(message || "");
+            console.log(`Time slot alert: ${alertMessage}`);
+        };
+
+        try {
+            targetButton.click();
+            await wait(150);
+        } finally {
+            window.alert = originalAlert;
+        }
+
+        if (alertSeen) {
+            const normalizedAlert = alertMessage.toLowerCase();
+            if (normalizedAlert.includes("continuous")) {
+                setStatus(`Stopped at ${label}. The site requires continuous slots.`, "warning");
+                return { attempted: true, clicked: false, label, reason: "continuous_required" };
+            }
+
+            setStatus(`Time ${label} returned a message: ${alertMessage}`, "warning");
+            return { attempted: true, clicked: false, label, reason: "alert" };
+        }
+
+        setStatus(`Clicked time ${label}. Waiting for the page to settle.`, "info");
+
+        const settleResult = await waitForTimeSlotSelection(label, beforeSnapshot, beforeSignature);
+        if (settleResult.settled) {
+            setStatus(`Selected time ${label}.`, "success");
+        } else {
+            setStatus(`Clicked time ${label}, but no clear state change was detected.`, "warning");
+        }
+
+        return {
+            attempted: true,
+            clicked: true,
+            label,
+            reason: settleResult.reason,
+        };
+    }
+
+    function getTargetDateInfo() {
+        const today = new Date();
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + 7);
+
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        return {
+            dayName: dayNames[targetDate.getDay()],
+            dayNumber: String(targetDate.getDate()).padStart(2, "0"),
+        };
+    }
+
+    async function clickDayButton() {
+        const { dayName, dayNumber } = getTargetDateInfo();
+        setStatus(`Selecting date ${dayName} ${dayNumber}.`, "info");
+
+        const dayButtons = Array.from(document.querySelectorAll(".day-container button"));
+        for (const button of dayButtons) {
+            const buttonDayName = button.querySelector(".day_name")?.textContent?.trim();
+            const buttonDayNumber = button.querySelector(".day_number")?.textContent?.trim();
+            if (buttonDayName === dayName && buttonDayNumber === dayNumber) {
+                button.click();
+                return true;
+            }
+        }
+
+        for (const button of dayButtons) {
+            const buttonDayNumber = button.querySelector(".day_number")?.textContent?.trim();
+            if (buttonDayNumber === dayNumber) {
+                button.click();
+                return true;
+            }
+        }
+
+        const nextWeekButton = Array.from(document.querySelectorAll("button")).find(button => {
+            const text = button.textContent ? button.textContent.trim() : "";
+            return text.includes("Next Week") || text.includes(">");
+        });
+
+        if (nextWeekButton) {
+            nextWeekButton.click();
+            await wait(500);
+            return clickDayButton();
+        }
+
+        setStatus(`Could not find date ${dayName} ${dayNumber}.`, "error");
+        return false;
+    }
+
+    async function selectPickleball() {
+        const pickleballButton = findButton("PICKLEBALL") || findButton("PICKLEBALL", true);
+        if (!pickleballButton) {
+            setStatus("Pickleball button not found. Continuing anyway.", "warning");
+            return false;
+        }
+
+        pickleballButton.click();
+        setStatus("Pickleball selected.", "success");
+        return true;
+    }
+
+    async function selectTimeSlots() {
+        setStatus("Checking preferred time slots.", "info");
+        const results = {
+            attemptedCount: 0,
+            successCount: 0,
+            failedLabels: [],
+        };
+
+        while (state.desiredTimeIndex < state.desiredTimes.length) {
+            const currentTime = state.desiredTimes[state.desiredTimeIndex];
+            setStatus(
+                `Selecting time ${state.desiredTimeIndex + 1} of ${state.desiredTimes.length}: ${currentTime}.`,
+                "info"
+            );
+            const slotResult = await clickTimeSlot(currentTime);
+            results.attemptedCount += 1;
+            if (slotResult.clicked) {
+                results.successCount += 1;
+            } else {
+                results.failedLabels.push(currentTime);
+                if (results.successCount > 0 || slotResult.reason === "continuous_required") {
+                    setStatus(`Stopping after ${currentTime} so the selected block stays continuous.`, "warning");
+                    break;
+                }
+            }
+
+            state.desiredTimeIndex += 1;
+            await wait(150);
+        }
+
+        if (results.failedLabels.length) {
+            setStatus(
+                `Attempted all ${results.attemptedCount} time slots. Missing: ${results.failedLabels.join(", ")}.`,
+                "warning"
+            );
+        } else {
+            setStatus(`Attempted all ${results.attemptedCount} time slots successfully.`, "success");
+        }
+
+        return results;
+    }
+
+    async function selectCourt() {
+        setStatus("Selecting the best available court.", "info");
+
+        for (const targetCourtName of CONFIG.courtPriority) {
+            const courtButton = Array.from(document.querySelectorAll("button")).find(button => {
+                const text = button.textContent ? button.textContent.trim().toUpperCase() : "";
+                return isVisibleButton(button) && text === targetCourtName;
+            });
+
+            if (courtButton) {
+                courtButton.click();
+                setStatus(`Selected court ${targetCourtName}.`, "success");
+                return true;
+            }
+        }
+
+        setStatus("No available court matched the priority list.", "error");
+        return false;
+    }
+
+    async function proceedAfterCourtSelection() {
+        const nextButton = findButton("NEXT");
+        if (!nextButton) {
+            setStatus("NEXT button was not found after court selection.", "error");
+            return false;
+        }
+
+        nextButton.click();
+        setStatus("Moving to player selection.", "info");
+        return true;
+    }
+
+    async function addFriendByName() {
+        const openAddUsersButton = findButton("ADD USERS");
+        if (!openAddUsersButton) {
+            setStatus("ADD USERS button not found. Continuing to the next step.", "warning");
+            return false;
+        }
+
+        openAddUsersButton.click();
+        await wait(200);
+
+        const addButton = findButton("ADD");
+        if (!addButton) {
+            setStatus("ADD button not found in the user modal.", "warning");
+            return false;
+        }
+
+        addButton.click();
+        setStatus("Users added.", "success");
+        return true;
+    }
+
+    async function proceedToFinalStep() {
+        const nextButton = findButton("NEXT");
+        if (!nextButton) {
+            setStatus("Final NEXT button not found. Trying to continue.", "warning");
+            return false;
+        }
+
+        nextButton.click();
+        setStatus("Moving to the final booking step.", "info");
+        return true;
+    }
+
+    function isRetryableAlert(message) {
+        const normalized = String(message || "").toLowerCase();
+        return [
+            "already booked",
+            "unavailable",
+            "no longer available",
+            "conflict",
+            "reserved",
+        ].some(fragment => normalized.includes(fragment));
+    }
+
+    async function finalizeBooking() {
+        const bookButton = findButton("BOOK", true);
+        if (!bookButton) {
+            setStatus("BOOK button not found.", "error");
+            return { success: false, retryable: false };
+        }
+
+        const originalAlert = window.alert;
+        let alertMessage = "";
+        let alertSeen = false;
+
+        window.alert = message => {
+            alertSeen = true;
+            alertMessage = String(message || "");
+            console.log(`Booking alert: ${alertMessage}`);
+        };
+
+        try {
+            bookButton.click();
+            setStatus("Submitting booking request.", "info");
+            await wait(1500);
+        } finally {
+            window.alert = originalAlert;
+        }
+
+        if (!alertSeen) {
+            setStatus("Booking completed.", "success");
+            return { success: true, retryable: false };
+        }
+
+        if (isRetryableAlert(alertMessage)) {
+            setStatus(`Booking conflict detected. Retrying if attempts remain. Message: ${alertMessage}`, "warning");
+            return { success: false, retryable: true };
+        }
+
+        setStatus(`Booking returned a message: ${alertMessage}`, "warning");
+        return { success: false, retryable: false };
+    }
+
+    async function goBackToDateTimeSelection() {
+        const exactStructure = document.querySelector("tr.header td h2.mb0.stepper_title");
+        if (exactStructure && exactStructure.textContent?.includes("Select date and time")) {
+            exactStructure.closest("tr.header")?.click();
+            setStatus("Returning to date and time selection.", "info");
+            await wait(500);
+            return true;
+        }
+
+        const dateTimeStepper = Array.from(document.querySelectorAll("tr.header")).find(row => {
+            const title = row.querySelector("h2.mb0.stepper_title");
+            return title && title.textContent.trim().includes("Select date and time");
+        });
+
+        if (dateTimeStepper) {
+            const clickTarget = dateTimeStepper.querySelector("h2.mb0.stepper_title") || dateTimeStepper;
+            clickTarget.click();
+            setStatus("Returning to date and time selection.", "info");
+            await wait(500);
+            return true;
+        }
+
+        const alternateTarget = document.querySelector("h2.mb0.stepper_title");
+        if (alternateTarget && alternateTarget.textContent?.includes("Select date and time")) {
+            alternateTarget.click();
+            setStatus("Returning to date and time selection.", "info");
+            await wait(500);
+            return true;
+        }
+
+        const allElements = Array.from(document.querySelectorAll("*"));
+        for (const element of allElements) {
+            const text = element.textContent || "";
+            if (!text.includes("Select date and time")) {
+                continue;
+            }
+
+            if (!["H2", "TD", "TR"].includes(element.tagName)) {
+                continue;
+            }
+
+            const clickTarget = element.closest("tr.header") || element;
+            clickTarget.click();
+            setStatus("Returning to date and time selection.", "info");
+            await wait(500);
+            return true;
+        }
+
+        const fallbackStepper = document.querySelector(".stepper_title");
+        if (fallbackStepper) {
+            fallbackStepper.click();
+            setStatus("Attempting to return to date and time selection.", "warning");
+            await wait(500);
+            return true;
+        }
+
+        setStatus("Date and time stepper not found.", "error");
+        return false;
+    }
+
+    function getCountdownParts() {
+        const hour = getXPathText(CONFIG.countdownHourXPath);
+        const minute = getXPathText(CONFIG.countdownMinuteXPath);
+        const second = getXPathText(CONFIG.countdownSecondXPath);
+
+        if (!hour || !minute || !second) {
+            return null;
+        }
+
+        return {
+            hour: hour.padStart(2, "0"),
+            minute: minute.padStart(2, "0"),
+            second: second.padStart(2, "0"),
+        };
+    }
+
+    async function waitForCountdownToEnd() {
+        await wait(CONFIG.countdownInitialDelayMs);
+
+        let count = getXPathCount(CONFIG.countdownMessageXPath);
+        let loopCounter = 0;
+
+        if (count < 1) {
+            setCountdown("No countdown shown.", "success");
+            return false;
+        }
+
+        setStatus("Countdown detected. Waiting for booking to open.", "info");
+        setMode("Waiting");
+
+        while (count > 0) {
+            if (state.waitCancelled) {
+                setCountdown("Cancelled.", "error");
+                return true;
+            }
+
+            const parts = getCountdownParts();
+            if (parts) {
+                const countdownText = `${parts.hour}:${parts.minute}:${parts.second}`;
+                setCountdown(countdownText, "info");
+                if (loopCounter % 10 === 0) {
+                    console.log(`Time left remaining: ${countdownText}`);
+                }
+            } else {
+                setCountdown("Waiting for countdown...", "warning");
+            }
+
+            await wait(CONFIG.countdownPollMs);
+            count = getXPathCount(CONFIG.countdownMessageXPath);
+            loopCounter += 1;
+        }
+
+        setCountdown("00:00:00", "success");
+        return true;
+    }
+
+    async function runBookingAttempt() {
+        const selectedDay = await clickDayButton();
+        await wait(selectedDay ? 350 : 1000);
+
+        await selectPickleball();
+        await wait(CONFIG.actionDelayMs);
+
+        await selectTimeSlots();
+        await wait(CONFIG.actionDelayMs);
+
+        const courtSelected = await selectCourt();
+        if (!courtSelected) {
+            return { success: false, retryable: false };
+        }
+
+        await wait(200);
+
+        const proceededAfterCourt = await proceedAfterCourtSelection();
+        if (!proceededAfterCourt) {
+            return { success: false, retryable: false };
+        }
+
+        await wait(200);
+        await addFriendByName();
+        await wait(230);
+        await proceedToFinalStep();
+        await wait(250);
+
+        return finalizeBooking();
+    }
+
+    async function startBookingFlow() {
+        ensurePanel();
+
+        if (state.runPromise) {
+            setStatus("A booking run is already active.", "warning");
+            return state.runPromise;
+        }
+
+        if (!syncDesiredTimesFromInput()) {
+            setMode("Needs Input");
+            return null;
+        }
+
+        state.waitCancelled = false;
+        state.runPromise = (async () => {
+            setMode("Preparing");
+            setStatus(`Checking for the booking countdown with ${state.desiredTimes.length} desired time slots.`, "info");
+            state.desiredTimeIndex = 0;
+            state.bookingAttempts = 0;
+
+            const waitedForCountdown = await waitForCountdownToEnd();
+            if (state.waitCancelled) {
+                setMode("Cancelled");
+                setStatus("Waiting was cancelled.", "warning");
+                return;
+            }
+
+            setMode("Booking");
+            setStatus(
+                waitedForCountdown
+                    ? "Countdown finished. Starting the booking flow."
+                    : "No countdown found. Starting the booking flow.",
+                "info"
+            );
+
+            for (let attempt = 0; attempt < CONFIG.MAX_BOOKING_ATTEMPTS; attempt += 1) {
+                state.bookingAttempts = attempt + 1;
+                state.desiredTimeIndex = 0;
+
+                if (attempt > 0) {
+                    const returned = await goBackToDateTimeSelection();
+                    if (!returned) {
+                        setMode("Error");
+                        setStatus("Could not navigate back for a retry.", "error");
+                        return;
+                    }
+                    await wait(300);
+                }
+
+                const result = await runBookingAttempt();
+                if (result.success) {
+                    setMode("Done");
+                    return;
+                }
+
+                if (!result.retryable) {
+                    setMode("Stopped");
+                    return;
+                }
+            }
+
+            setMode("Failed");
+            setStatus(`Booking failed after ${CONFIG.MAX_BOOKING_ATTEMPTS} attempts.`, "error");
+        })().finally(() => {
+            state.runPromise = null;
+        });
+
+        return state.runPromise;
+    }
+
+    function cancelPendingWork() {
+        state.waitCancelled = true;
+
+        if (state.scheduledTimer) {
+            window.clearTimeout(state.scheduledTimer);
+            state.scheduledTimer = null;
+        }
+
+        setMode("Cancelled");
+        setStatus("Scheduled work or waiting was cancelled.", "warning");
+        setCountdown("Cancelled.", "error");
+    }
+
+    function scheduleBooking() {
+        ensurePanel();
+
+        if (!syncDesiredTimesFromInput()) {
+            setMode("Needs Input");
+            return;
+        }
+
+        if (!syncScheduleTimeFromInputs()) {
+            setMode("Needs Input");
+            return;
+        }
+
+        if (state.scheduledTimer) {
+            window.clearTimeout(state.scheduledTimer);
+        }
+
+        const delayMs = calculateDelayUntilTargetTime(state.scheduleHour, state.scheduleMinute);
+        const targetLabel = formatTime12Hour(state.scheduleHour, state.scheduleMinute);
+        const hours = Math.floor(delayMs / (1000 * 60 * 60));
+        const minutes = Math.floor((delayMs % (1000 * 60 * 60)) / (1000 * 60));
+
+        state.waitCancelled = false;
+        state.scheduledTimer = window.setTimeout(() => {
+            state.scheduledTimer = null;
+            startBookingFlow();
+        }, delayMs);
+
+        setMode("Scheduled");
+        setCountdown("Waiting for schedule.", "info");
+        setStatus(`Booking scheduled for ${targetLabel} in about ${hours}h ${minutes}m.`, "success");
+    }
+
+    const api = {
+        handleAction(action) {
+            ensurePanel();
+
+            if (action === "schedule") {
+                scheduleBooking();
+                return;
+            }
+
+            if (action === "panel" || action === "start") {
+                setMode("Ready");
+            setStatus("Page panel is open. Enter a booking range, then use the page buttons.", "success");
+            setCountdown("Not started");
+            return;
+        }
+
+            api.startImmediate();
+        },
+        startImmediate() {
+            cancelPendingWork();
+            state.waitCancelled = false;
+            setCountdown("Checking page...", "info");
+            return startBookingFlow();
+        },
+        scheduleBooking,
+        cancelPendingWork,
+    };
+
+    window.PickleballBooking = api;
+})();
