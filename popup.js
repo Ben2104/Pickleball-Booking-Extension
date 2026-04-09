@@ -27,6 +27,12 @@ async function runAction(action) {
 
         await chrome.scripting.executeScript({
             target: { tabId },
+            files: ["page-alert-bridge.js"],
+            world: "MAIN",
+        });
+
+        await chrome.scripting.executeScript({
+            target: { tabId },
             files: ["booking-functions.js"],
         });
 

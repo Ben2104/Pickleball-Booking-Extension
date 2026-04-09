@@ -1350,41 +1350,46 @@
     }
 
     async function finalizeBooking() {
+        const alertRoot = document.documentElement;
+        const alertArmedAttribute = "data-pickleball-booking-alert-armed";
+        const alertSeenAttribute = "data-pickleball-booking-alert-seen";
+        const alertMessageAttribute = "data-pickleball-booking-alert-message";
         const bookButton = findButton("BOOK", true);
         if (!bookButton) {
             setStatus("BOOK button not found.", "error");
             return { success: false, retryable: false };
         }
 
-        const originalAlert = window.alert;
-        let alertMessage = "";
-        let alertSeen = false;
-
-        window.alert = message => {
-            alertSeen = true;
-            alertMessage = String(message || "");
-            console.log(`Booking alert: ${alertMessage}`);
-        };
+        if (!alertRoot) {
+            setStatus("Booking alert bridge is unavailable on this page.", "error");
+            return { success: false, retryable: false };
+        }
 
         try {
+            alertRoot.setAttribute(alertArmedAttribute, "true");
+            alertRoot.setAttribute(alertSeenAttribute, "false");
+            alertRoot.removeAttribute(alertMessageAttribute);
+
             bookButton.click();
             setStatus("Submitting booking request.", "info");
             await wait(1500);
         } finally {
-            window.alert = originalAlert;
+            alertRoot.setAttribute(alertArmedAttribute, "false");
         }
+
+        const alertSeen = alertRoot.getAttribute(alertSeenAttribute) === "true";
+        const alertMessage = alertRoot.getAttribute(alertMessageAttribute) || "";
+
+        alertRoot.setAttribute(alertSeenAttribute, "false");
+        alertRoot.removeAttribute(alertMessageAttribute);
 
         if (!alertSeen) {
             setStatus("Booking completed.", "success");
             return { success: true, retryable: false };
         }
 
-        if (isRetryableAlert(alertMessage)) {
-            setStatus(`Booking conflict detected. Retrying if attempts remain. Message: ${alertMessage}`, "warning");
-            return { success: false, retryable: true };
-        }
-
-        setStatus(`Booking returned a message: ${alertMessage}`, "warning");
+        console.log(`Booking alert acknowledged: ${alertMessage}`);
+        setStatus(`Booking alert acknowledged: ${alertMessage}`, "warning");
         return { success: false, retryable: false };
     }
 
