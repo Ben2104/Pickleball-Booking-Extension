@@ -3,6 +3,8 @@
         return;
     }
 
+    const COURT_PRIORITY_STORAGE_KEY = "courtPriorityOrder";
+
     const CONFIG = {
         desiredTimes: ["5:30-6:30pm", "6:30-7:00pm", "7:00-7:30pm", "7:30-8:00pm"], 
         targetHour: null,
@@ -51,7 +53,14 @@
         modeText: null,
         countdownText: null,
         countdownLabel: null,
+        courtPriority: [...CONFIG.courtPriority],
+        courtPriorityList: null,
+        courtPriorityPreview: null,
+        draggedCourtName: null,
+        courtPriorityReady: null,
     };
+
+    state.courtPriorityReady = initializeCourtPriority();
 
     function wait(ms) {
         return new Promise(resolve => {
@@ -128,6 +137,290 @@
         });
     }
 
+    function getStorageArea() {
+        if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.local) {
+            return null;
+        }
+
+        return chrome.storage.local;
+    }
+
+    function readStorageValue(key) {
+        const storage = getStorageArea();
+        if (!storage) {
+            return Promise.resolve(undefined);
+        }
+
+        return new Promise(resolve => {
+            storage.get([key], result => {
+                if (chrome.runtime && chrome.runtime.lastError) {
+                    console.warn(chrome.runtime.lastError.message);
+                    resolve(undefined);
+                    return;
+                }
+
+                resolve(result ? result[key] : undefined);
+            });
+        });
+    }
+
+    function writeStorageValue(key, value) {
+        const storage = getStorageArea();
+        if (!storage) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise(resolve => {
+            storage.set({ [key]: value }, () => {
+                if (chrome.runtime && chrome.runtime.lastError) {
+                    console.warn(chrome.runtime.lastError.message);
+                    resolve(false);
+                    return;
+                }
+
+                resolve(true);
+            });
+        });
+    }
+
+    function arraysEqual(left, right) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+            return false;
+        }
+
+        return left.every((value, index) => value === right[index]);
+    }
+
+    function normalizeCourtPriorityOrder(order) {
+        const knownCourts = new Set(CONFIG.courtPriority);
+        const normalized = [];
+
+        if (Array.isArray(order)) {
+            order.forEach(item => {
+                const label = normalizeText(item).toUpperCase();
+                if (!knownCourts.has(label) || normalized.includes(label)) {
+                    return;
+                }
+
+                normalized.push(label);
+            });
+        }
+
+        CONFIG.courtPriority.forEach(defaultCourt => {
+            if (!normalized.includes(defaultCourt)) {
+                normalized.push(defaultCourt);
+            }
+        });
+
+        return normalized;
+    }
+
+    function serializeCourtPriority(order = state.courtPriority) {
+        return order.join(", ");
+    }
+
+    async function persistCourtPriorityOrder(order = state.courtPriority) {
+        const normalizedOrder = normalizeCourtPriorityOrder(order);
+        state.courtPriority = normalizedOrder;
+        return writeStorageValue(COURT_PRIORITY_STORAGE_KEY, normalizedOrder);
+    }
+
+    async function initializeCourtPriority() {
+        const storedOrder = await readStorageValue(COURT_PRIORITY_STORAGE_KEY);
+        const normalizedOrder = normalizeCourtPriorityOrder(storedOrder);
+        state.courtPriority = normalizedOrder;
+
+        if (!arraysEqual(storedOrder, normalizedOrder)) {
+            await persistCourtPriorityOrder(normalizedOrder);
+        }
+
+        renderCourtPriorityList();
+        updateCourtPriorityPreview();
+        return normalizedOrder;
+    }
+
+    function updateCourtPriorityPreview(tone = "neutral") {
+        if (!state.courtPriorityPreview) {
+            return;
+        }
+
+        state.courtPriorityPreview.textContent = serializeCourtPriority();
+        const colors = {
+            neutral: "#183454",
+            success: "#166534",
+            warning: "#b45309",
+            error: "#b91c1c",
+        };
+        state.courtPriorityPreview.style.color = colors[tone];
+    }
+
+    function clearCourtPriorityDropIndicators() {
+        if (!state.courtPriorityList) {
+            return;
+        }
+
+        Array.from(state.courtPriorityList.children).forEach(row => {
+            row.style.borderTopColor = row.dataset.index === "0" ? "transparent" : "rgba(24, 52, 84, 0.08)";
+            row.style.borderBottomColor = "transparent";
+            row.style.background = "rgba(255, 255, 255, 0.94)";
+        });
+    }
+
+    function getCourtPriorityDropPosition(event, row) {
+        const bounds = row.getBoundingClientRect();
+        const midpoint = bounds.top + bounds.height / 2;
+        return event.clientY < midpoint ? "before" : "after";
+    }
+
+    function styleCourtPriorityDropTarget(row, position) {
+        clearCourtPriorityDropIndicators();
+        row.style.background = "rgba(239, 246, 255, 0.98)";
+        if (position === "before") {
+            row.style.borderTopColor = "#1d4ed8";
+        } else {
+            row.style.borderBottomColor = "#1d4ed8";
+        }
+    }
+
+    async function moveCourtPriority(draggedCourtName, targetCourtName, position) {
+        const nextOrder = [...state.courtPriority];
+        const currentIndex = nextOrder.indexOf(draggedCourtName);
+        const targetIndex = nextOrder.indexOf(targetCourtName);
+
+        if (currentIndex === -1 || targetIndex === -1) {
+            clearCourtPriorityDropIndicators();
+            renderCourtPriorityList();
+            return;
+        }
+
+        nextOrder.splice(currentIndex, 1);
+
+        let insertionIndex = targetIndex;
+        if (currentIndex < targetIndex) {
+            insertionIndex -= 1;
+        }
+        if (position === "after") {
+            insertionIndex += 1;
+        }
+
+        nextOrder.splice(insertionIndex, 0, draggedCourtName);
+
+        state.courtPriority = nextOrder;
+        state.draggedCourtName = null;
+        clearCourtPriorityDropIndicators();
+        renderCourtPriorityList();
+        updateCourtPriorityPreview("success");
+        await persistCourtPriorityOrder(nextOrder);
+        setStatus(`Court priority saved. ${draggedCourtName} is now #${nextOrder.indexOf(draggedCourtName) + 1}.`, "success");
+    }
+
+    function createCourtPriorityRow(courtName, index) {
+        const row = createElement("div");
+        row.draggable = true;
+        row.dataset.courtName = courtName;
+        row.dataset.index = String(index);
+        Object.assign(row.style, {
+            display: "grid",
+            gridTemplateColumns: "34px 1fr auto",
+            gap: "10px",
+            alignItems: "center",
+            padding: "12px 14px",
+            background: "rgba(255, 255, 255, 0.94)",
+            cursor: "grab",
+            userSelect: "none",
+            borderTop: index === 0 ? "1px solid transparent" : "1px solid rgba(24, 52, 84, 0.08)",
+            borderBottom: "1px solid transparent",
+            transition: "background 120ms ease, border-color 120ms ease, transform 120ms ease",
+        });
+
+        const rank = createElement("div", null, String(index + 1));
+        Object.assign(rank.style, {
+            width: "28px",
+            height: "28px",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: "999px",
+            fontSize: "12px",
+            fontWeight: "700",
+            color: "#1d4ed8",
+            background: "rgba(219, 234, 254, 0.9)",
+        });
+
+        const name = createElement("div", null, courtName);
+        Object.assign(name.style, {
+            fontSize: "13px",
+            fontWeight: "700",
+            letterSpacing: "0.02em",
+            color: "#183454",
+        });
+
+        const handle = createElement("div", null, "drag");
+        Object.assign(handle.style, {
+            fontSize: "10px",
+            fontWeight: "700",
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        row.addEventListener("dragstart", event => {
+            state.draggedCourtName = courtName;
+            row.style.opacity = "0.55";
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", courtName);
+            }
+        });
+
+        row.addEventListener("dragend", () => {
+            state.draggedCourtName = null;
+            row.style.opacity = "1";
+            clearCourtPriorityDropIndicators();
+            renderCourtPriorityList();
+        });
+
+        row.addEventListener("dragover", event => {
+            if (!state.draggedCourtName || state.draggedCourtName === courtName) {
+                return;
+            }
+
+            event.preventDefault();
+            styleCourtPriorityDropTarget(row, getCourtPriorityDropPosition(event, row));
+        });
+
+        row.addEventListener("dragleave", event => {
+            if (row.contains(event.relatedTarget)) {
+                return;
+            }
+
+            clearCourtPriorityDropIndicators();
+        });
+
+        row.addEventListener("drop", async event => {
+            event.preventDefault();
+            if (!state.draggedCourtName || state.draggedCourtName === courtName) {
+                clearCourtPriorityDropIndicators();
+                return;
+            }
+
+            const position = getCourtPriorityDropPosition(event, row);
+            await moveCourtPriority(state.draggedCourtName, courtName, position);
+        });
+
+        row.append(rank, name, handle);
+        return row;
+    }
+
+    function renderCourtPriorityList() {
+        if (!state.courtPriorityList) {
+            return;
+        }
+
+        state.courtPriorityList.replaceChildren(
+            ...state.courtPriority.map((courtName, index) => createCourtPriorityRow(courtName, index))
+        );
+    }
+
     function ensurePanel() {
         if (state.panel && document.body.contains(state.panel)) {
             return;
@@ -201,6 +494,66 @@
             gap: "12px",
         });
 
+        const courtPrioritySection = createElement("div");
+        Object.assign(courtPrioritySection.style, {
+            display: "grid",
+            gap: "8px",
+        });
+
+        const courtPriorityHeader = createElement("div");
+        Object.assign(courtPriorityHeader.style, {
+            display: "grid",
+            gap: "4px",
+        });
+
+        const courtPriorityLabel = createElement("div", null, "Court Priority");
+        Object.assign(courtPriorityLabel.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#5d7085",
+        });
+
+        const courtPriorityHelp = createElement("p", null, "Drag courts into order. Top is highest priority for Start Now and Schedule Booking.");
+        Object.assign(courtPriorityHelp.style, {
+            margin: "0",
+            color: "#5d7085",
+            fontSize: "12px",
+            lineHeight: "1.45",
+        });
+
+        courtPriorityHeader.append(courtPriorityLabel, courtPriorityHelp);
+
+        const courtPriorityBox = createElement("div");
+        Object.assign(courtPriorityBox.style, {
+            maxHeight: "246px",
+            overflowY: "auto",
+            border: "1px solid rgba(24, 52, 84, 0.12)",
+            borderRadius: "16px",
+            background: "rgba(255, 255, 255, 0.82)",
+            boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.7)",
+        });
+
+        const courtPriorityList = createElement("div");
+        Object.assign(courtPriorityList.style, {
+            display: "grid",
+        });
+
+        courtPriorityBox.appendChild(courtPriorityList);
+
+        const courtPriorityPreview = createPreviewCard(
+            "Priority String",
+            serializeCourtPriority(),
+            { minHeight: "52px", fontSize: "12px" }
+        );
+
+        courtPrioritySection.append(
+            courtPriorityHeader,
+            courtPriorityBox,
+            courtPriorityPreview.wrapper
+        );
+
         const desiredRangeFields = createElement("div");
         Object.assign(desiredRangeFields.style, {
             display: "grid",
@@ -240,8 +593,8 @@
 
         const hourField = createPanelInput("Hour", "6");
         const minuteField = createPanelInput("Minutes", "59");
-        hourField.input.value = String(state.scheduleHour);
-        minuteField.input.value = String(state.scheduleMinute).padStart(2, "0");
+        hourField.input.value = state.scheduleHour === null ? "" : String(state.scheduleHour);
+        minuteField.input.value = state.scheduleMinute === null ? "" : String(state.scheduleMinute).padStart(2, "0");
         scheduleFields.append(hourField.wrapper, minuteField.wrapper);
 
         const statusCard = createElement("div");
@@ -284,11 +637,20 @@
         });
 
         buttonGrid.append(startButton, scheduleButton, cancelButton);
-        body.append(desiredRangeFields, desiredTimesPreview.wrapper, scheduleFields, statusCard, buttonGrid);
+        body.append(
+            courtPrioritySection,
+            desiredRangeFields,
+            desiredTimesPreview.wrapper,
+            scheduleFields,
+            statusCard,
+            buttonGrid
+        );
         panel.append(header, body);
         document.body.appendChild(panel);
 
         state.panel = panel;
+        state.courtPriorityList = courtPriorityList;
+        state.courtPriorityPreview = courtPriorityPreview.value;
         state.desiredRangeStartInput = desiredStartField.input;
         state.desiredRangeEndInput = desiredEndField.input;
         state.desiredRangeMeridiemSelect = meridiemField.select;
@@ -299,6 +661,8 @@
         state.countdownText = countdownRow.value;
         state.statusText = statusRow.value;
         state.countdownLabel = countdownRow.row;
+        renderCourtPriorityList();
+        updateCourtPriorityPreview();
         updateDesiredTimesPreview();
     }
 
@@ -377,7 +741,7 @@
         return { wrapper, input };
     }
 
-    function createPreviewCard(label, initialValue) {
+    function createPreviewCard(label, initialValue, options = {}) {
         const wrapper = createElement("div");
         Object.assign(wrapper.style, {
             display: "grid",
@@ -395,15 +759,15 @@
 
         const value = createElement("div", null, initialValue);
         Object.assign(value.style, {
-            minHeight: "62px",
+            minHeight: options.minHeight || "62px",
             border: "1px solid rgba(24, 52, 84, 0.12)",
             borderRadius: "12px",
             padding: "11px 12px",
             background: "#ffffff",
-            fontSize: "13px",
+            fontSize: options.fontSize || "13px",
             lineHeight: "1.5",
             color: "#183454",
-            whiteSpace: "normal",
+            whiteSpace: options.whiteSpace || "normal",
             wordBreak: "break-word",
         });
 
@@ -910,9 +1274,9 @@
     }
 
     async function selectCourt() {
-        setStatus("Selecting the best available court.", "info");
+        setStatus(`Selecting the best available court from ${serializeCourtPriority()}.`, "info");
 
-        for (const targetCourtName of CONFIG.courtPriority) {
+        for (const targetCourtName of state.courtPriority) {
             const courtButton = Array.from(document.querySelectorAll("button")).find(button => {
                 const text = button.textContent ? button.textContent.trim().toUpperCase() : "";
                 return isVisibleButton(button) && text === targetCourtName;
@@ -925,7 +1289,7 @@
             }
         }
 
-        setStatus("No available court matched the priority list.", "error");
+        setStatus(`No available court matched the saved priority list: ${serializeCourtPriority()}.`, "error");
         return false;
     }
 
@@ -1179,6 +1543,13 @@
             return state.runPromise;
         }
 
+        await state.courtPriorityReady;
+
+        if (state.runPromise) {
+            setStatus("A booking run is already active.", "warning");
+            return state.runPromise;
+        }
+
         if (!syncDesiredTimesFromInput()) {
             setMode("Needs Input");
             return null;
@@ -1187,7 +1558,10 @@
         state.waitCancelled = false;
         state.runPromise = (async () => {
             setMode("Preparing");
-            setStatus(`Checking for the booking countdown with ${state.desiredTimes.length} desired time slots.`, "info");
+            setStatus(
+                `Checking for the booking countdown with ${state.desiredTimes.length} desired time slots. Top court: ${state.courtPriority[0]}.`,
+                "info"
+            );
             state.desiredTimeIndex = 0;
             state.bookingAttempts = 0;
 
@@ -1298,10 +1672,10 @@
 
             if (action === "panel" || action === "start") {
                 setMode("Ready");
-            setStatus("Page panel is open. Enter a booking range, then use the page buttons.", "success");
-            setCountdown("Not started");
-            return;
-        }
+                setStatus("Page panel is open. Drag courts, enter a booking range, then use the page buttons.", "success");
+                setCountdown("Not started");
+                return;
+            }
 
             api.startImmediate();
         },

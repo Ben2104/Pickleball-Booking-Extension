@@ -3,7 +3,7 @@
     "name": "Pickleball Court Auto Booker",
     "version": "1.0",
     "description": "Auto-books a pickleball court at your desired time",
-    "permissions": ["scripting", "tabs", "activeTab"],
+    "permissions": ["scripting", "tabs", "activeTab", "storage"],
     "action": {
       "default_popup": "popup.html"
     }
