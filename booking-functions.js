@@ -17,6 +17,10 @@
         countdownPollMs: 200,
         timeSlotSettlePollMs: 120,
         timeSlotSettleTimeoutMs: 2000,
+        courtSelectionPollMs: 120,
+        courtSelectionTimeoutMs: 2000,
+        bookingResultPollMs: 150,
+        bookingResultTimeoutMs: 4000,
         actionDelayMs: 250,
         MAX_BOOKING_ATTEMPTS: 3,
         courtPriority: [
@@ -58,6 +62,8 @@
         courtPriorityPreview: null,
         draggedCourtName: null,
         courtPriorityReady: null,
+        triedCourts: [],
+        currentCourtName: null,
     };
 
     state.courtPriorityReady = initializeCourtPriority();
@@ -217,6 +223,10 @@
 
     function serializeCourtPriority(order = state.courtPriority) {
         return order.join(", ");
+    }
+
+    function getRemainingCourtPriority() {
+        return state.courtPriority.filter(courtName => !state.triedCourts.includes(courtName));
     }
 
     async function persistCourtPriorityOrder(order = state.courtPriority) {
@@ -1086,6 +1096,34 @@
         return matchedButton;
     }
 
+    function findCourtButton(courtName) {
+        const normalizedCourtName = normalizeText(courtName).toUpperCase();
+        return Array.from(document.querySelectorAll("button")).find(button => {
+            if (!isVisibleButton(button)) {
+                return false;
+            }
+
+            return normalizeText(button.textContent).toUpperCase() === normalizedCourtName;
+        }) || null;
+    }
+
+    function getVisibleCourtButtonsSnapshot() {
+        return Array.from(document.querySelectorAll("button"))
+            .filter(isVisibleButton)
+            .map(button => normalizeText(button.textContent).toUpperCase())
+            .filter(text => text.startsWith("PICKLEBALL "))
+            .join("|");
+    }
+
+    function getBookingProgressSignature() {
+        return JSON.stringify({
+            path: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+            next: !!findButton("NEXT"),
+            checkout: !!findButton("CHECKOUT", true),
+            book: !!findButton("BOOK", true),
+        });
+    }
+
     async function waitForTimeSlotSelection(label, beforeSnapshot, beforeSignature) {
         const startedAt = Date.now();
 
@@ -1111,6 +1149,41 @@
             }
 
             await wait(CONFIG.timeSlotSettlePollMs);
+        }
+
+        return { settled: false, reason: "timeout" };
+    }
+
+    async function waitForCourtSelection(courtName, beforeSnapshot, beforeSignature, beforeProgressSignature) {
+        const startedAt = Date.now();
+
+        while (Date.now() - startedAt < CONFIG.courtSelectionTimeoutMs) {
+            const currentButton = findCourtButton(courtName);
+            const currentSnapshot = getVisibleCourtButtonsSnapshot();
+            const currentSignature = getButtonStateSignature(currentButton);
+            const currentProgressSignature = getBookingProgressSignature();
+
+            if (!currentButton) {
+                return { settled: true, reason: "button_missing_after_click" };
+            }
+
+            if (currentButton.disabled) {
+                return { settled: true, reason: "button_disabled" };
+            }
+
+            if (currentSignature !== beforeSignature) {
+                return { settled: true, reason: "button_state_changed" };
+            }
+
+            if (currentSnapshot !== beforeSnapshot) {
+                return { settled: true, reason: "court_list_changed" };
+            }
+
+            if (currentProgressSignature !== beforeProgressSignature) {
+                return { settled: true, reason: "progress_changed" };
+            }
+
+            await wait(CONFIG.courtSelectionPollMs);
         }
 
         return { settled: false, reason: "timeout" };
@@ -1274,23 +1347,61 @@
     }
 
     async function selectCourt() {
-        setStatus(`Selecting the best available court from ${serializeCourtPriority()}.`, "info");
+        const remainingCourts = getRemainingCourtPriority();
+        state.currentCourtName = null;
+        let attemptedSelection = false;
 
-        for (const targetCourtName of state.courtPriority) {
+        if (!remainingCourts.length) {
+            setStatus("All courts in the saved priority list have already been tried.", "warning");
+            return { selected: false, reason: "exhausted" };
+        }
+
+        setStatus(`Selecting the best available court from ${remainingCourts.join(", ")}.`, "info");
+
+        for (const [courtIndex, targetCourtName] of state.courtPriority.entries()) {
+            if (state.triedCourts.includes(targetCourtName)) {
+                continue;
+            }
+
             const courtButton = Array.from(document.querySelectorAll("button")).find(button => {
                 const text = button.textContent ? button.textContent.trim().toUpperCase() : "";
                 return isVisibleButton(button) && text === targetCourtName;
             });
 
             if (courtButton) {
+                attemptedSelection = true;
+                const beforeSnapshot = getVisibleCourtButtonsSnapshot();
+                const beforeSignature = getButtonStateSignature(courtButton);
+                const beforeProgressSignature = getBookingProgressSignature();
+
                 courtButton.click();
+                setStatus(`Clicked court ${targetCourtName}. Waiting for the page to settle.`, "info");
+
+                const settleResult = await waitForCourtSelection(
+                    targetCourtName,
+                    beforeSnapshot,
+                    beforeSignature,
+                    beforeProgressSignature
+                );
+
+                if (!settleResult.settled) {
+                    setStatus(`Court ${targetCourtName} did not settle after the click. Trying the next court.`, "warning");
+                    continue;
+                }
+
+                state.currentCourtName = targetCourtName;
                 setStatus(`Selected court ${targetCourtName}.`, "success");
-                return true;
+                return { selected: true, courtName: targetCourtName, courtIndex, selectionReason: settleResult.reason };
             }
         }
 
-        setStatus(`No available court matched the saved priority list: ${serializeCourtPriority()}.`, "error");
-        return false;
+        if (attemptedSelection) {
+            setStatus("Tried the remaining visible courts, but none of the selections stuck.", "error");
+            return { selected: false, reason: "exhausted" };
+        }
+
+        setStatus(`No available court matched the remaining priority list: ${remainingCourts.join(", ")}.`, "error");
+        return { selected: false, reason: "exhausted" };
     }
 
     async function proceedAfterCourtSelection() {
@@ -1338,15 +1449,133 @@
         return true;
     }
 
-    function isRetryableAlert(message) {
-        const normalized = String(message || "").toLowerCase();
-        return [
-            "already booked",
-            "unavailable",
-            "no longer available",
-            "conflict",
-            "reserved",
-        ].some(fragment => normalized.includes(fragment));
+    function getStepperStatusMessage(stepTitle) {
+        return stepTitle === "Select date and time"
+            ? "Returning to date and time selection."
+            : `Opening ${stepTitle}.`;
+    }
+
+    async function openStepper(stepTitle) {
+        const normalizedStepTitle = normalizeText(stepTitle).toLowerCase();
+        const matchesTitle = element => normalizeText(element?.textContent || "").toLowerCase().includes(normalizedStepTitle);
+        const clickStepperTarget = target => {
+            (target.closest("tr.header") || target).click();
+        };
+
+        const exactStructure = Array.from(document.querySelectorAll("tr.header td h2.mb0.stepper_title")).find(matchesTitle);
+        if (exactStructure) {
+            clickStepperTarget(exactStructure);
+            setStatus(getStepperStatusMessage(stepTitle), "info");
+            await wait(500);
+            return true;
+        }
+
+        const stepperRow = Array.from(document.querySelectorAll("tr.header")).find(row => {
+            return matchesTitle(row.querySelector("h2.mb0.stepper_title"));
+        });
+
+        if (stepperRow) {
+            const clickTarget = stepperRow.querySelector("h2.mb0.stepper_title") || stepperRow;
+            clickStepperTarget(clickTarget);
+            setStatus(getStepperStatusMessage(stepTitle), "info");
+            await wait(500);
+            return true;
+        }
+
+        const alternateTarget = Array.from(document.querySelectorAll("h2.mb0.stepper_title")).find(matchesTitle);
+        if (alternateTarget) {
+            clickStepperTarget(alternateTarget);
+            setStatus(getStepperStatusMessage(stepTitle), "info");
+            await wait(500);
+            return true;
+        }
+
+        const allElements = Array.from(document.querySelectorAll("*"));
+        for (const element of allElements) {
+            const text = normalizeText(element.textContent || "").toLowerCase();
+            if (!text.includes(normalizedStepTitle)) {
+                continue;
+            }
+
+            if (!["H2", "TD", "TR"].includes(element.tagName)) {
+                continue;
+            }
+
+            clickStepperTarget(element);
+            setStatus(getStepperStatusMessage(stepTitle), "info");
+            await wait(500);
+            return true;
+        }
+
+        const fallbackStepper = Array.from(document.querySelectorAll(".stepper_title")).find(matchesTitle);
+        if (fallbackStepper) {
+            clickStepperTarget(fallbackStepper);
+            setStatus(`Attempting to open ${stepTitle}.`, "warning");
+            await wait(500);
+            return true;
+        }
+
+        setStatus(`${stepTitle} stepper not found.`, "error");
+        return false;
+    }
+
+    async function waitForBookButton() {
+        const startedAt = Date.now();
+
+        while (Date.now() - startedAt < CONFIG.bookingResultTimeoutMs) {
+            const bookButton = findButton("BOOK", true);
+            if (bookButton) {
+                return bookButton;
+            }
+
+            await wait(CONFIG.bookingResultPollMs);
+        }
+
+        return null;
+    }
+
+    async function ensureCheckoutStep(options = {}) {
+        const { forceOpen = false } = options;
+
+        if (!forceOpen && findButton("BOOK", true)) {
+            return true;
+        }
+
+        const openedCheckout = await openStepper("Checkout");
+        if (!openedCheckout) {
+            setStatus("Checkout stepper not found and BOOK button is unavailable.", "error");
+            return false;
+        }
+
+        const bookButton = await waitForBookButton();
+        if (bookButton) {
+            return true;
+        }
+
+        setStatus("Checkout opened, but BOOK is still unavailable.", "error");
+        return false;
+    }
+
+    async function waitForCourtSelectionScreen() {
+        const startedAt = Date.now();
+
+        while (Date.now() - startedAt < CONFIG.courtSelectionTimeoutMs) {
+            const hasCourtButtons = state.courtPriority.some(courtName => {
+                return Array.from(document.querySelectorAll("button")).some(button => {
+                    const text = button.textContent ? button.textContent.trim().toUpperCase() : "";
+                    return isVisibleButton(button) && text === courtName;
+                });
+            });
+
+            if (hasCourtButtons) {
+                return true;
+            }
+
+            await wait(CONFIG.courtSelectionPollMs);
+        }
+
+        setStatus("Court list did not reappear after returning to Select date and time.", "error");
+        return false;
     }
 
     async function finalizeBooking() {
@@ -1357,13 +1586,15 @@
         const bookButton = findButton("BOOK", true);
         if (!bookButton) {
             setStatus("BOOK button not found.", "error");
-            return { success: false, retryable: false };
+            return { success: false, reason: "book_missing", retryable: false, courtName: state.currentCourtName };
         }
 
         if (!alertRoot) {
             setStatus("Booking alert bridge is unavailable on this page.", "error");
-            return { success: false, retryable: false };
+            return { success: false, reason: "bridge_unavailable", retryable: false, courtName: state.currentCourtName };
         }
+
+        const originalLocation = window.location.href;
 
         try {
             alertRoot.setAttribute(alertArmedAttribute, "true");
@@ -1372,7 +1603,23 @@
 
             bookButton.click();
             setStatus("Submitting booking request.", "info");
-            await wait(1500);
+
+            const startedAt = Date.now();
+            while (Date.now() - startedAt < CONFIG.bookingResultTimeoutMs) {
+                if (alertRoot.getAttribute(alertSeenAttribute) === "true") {
+                    break;
+                }
+
+                if (window.location.href !== originalLocation) {
+                    break;
+                }
+
+                if (!findButton("BOOK", true)) {
+                    break;
+                }
+
+                await wait(CONFIG.bookingResultPollMs);
+            }
         } finally {
             alertRoot.setAttribute(alertArmedAttribute, "false");
         }
@@ -1384,73 +1631,28 @@
         alertRoot.removeAttribute(alertMessageAttribute);
 
         if (!alertSeen) {
-            setStatus("Booking completed.", "success");
-            return { success: true, retryable: false };
+            if (window.location.href !== originalLocation || !findButton("BOOK", true)) {
+                setStatus("Booking completed.", "success");
+                return { success: true, reason: "success", retryable: false, courtName: state.currentCourtName };
+            }
+
+            setStatus("BOOK was clicked, but the page stayed on checkout. Retrying the next court.", "warning");
+            return { success: false, reason: "book_stalled", retryable: true, courtName: state.currentCourtName };
         }
 
         console.log(`Booking alert acknowledged: ${alertMessage}`);
         setStatus(`Booking alert acknowledged: ${alertMessage}`, "warning");
-        return { success: false, retryable: false };
+        return {
+            success: false,
+            reason: "booking_alert",
+            retryable: true,
+            alertMessage,
+            courtName: state.currentCourtName,
+        };
     }
 
     async function goBackToDateTimeSelection() {
-        const exactStructure = document.querySelector("tr.header td h2.mb0.stepper_title");
-        if (exactStructure && exactStructure.textContent?.includes("Select date and time")) {
-            exactStructure.closest("tr.header")?.click();
-            setStatus("Returning to date and time selection.", "info");
-            await wait(500);
-            return true;
-        }
-
-        const dateTimeStepper = Array.from(document.querySelectorAll("tr.header")).find(row => {
-            const title = row.querySelector("h2.mb0.stepper_title");
-            return title && title.textContent.trim().includes("Select date and time");
-        });
-
-        if (dateTimeStepper) {
-            const clickTarget = dateTimeStepper.querySelector("h2.mb0.stepper_title") || dateTimeStepper;
-            clickTarget.click();
-            setStatus("Returning to date and time selection.", "info");
-            await wait(500);
-            return true;
-        }
-
-        const alternateTarget = document.querySelector("h2.mb0.stepper_title");
-        if (alternateTarget && alternateTarget.textContent?.includes("Select date and time")) {
-            alternateTarget.click();
-            setStatus("Returning to date and time selection.", "info");
-            await wait(500);
-            return true;
-        }
-
-        const allElements = Array.from(document.querySelectorAll("*"));
-        for (const element of allElements) {
-            const text = element.textContent || "";
-            if (!text.includes("Select date and time")) {
-                continue;
-            }
-
-            if (!["H2", "TD", "TR"].includes(element.tagName)) {
-                continue;
-            }
-
-            const clickTarget = element.closest("tr.header") || element;
-            clickTarget.click();
-            setStatus("Returning to date and time selection.", "info");
-            await wait(500);
-            return true;
-        }
-
-        const fallbackStepper = document.querySelector(".stepper_title");
-        if (fallbackStepper) {
-            fallbackStepper.click();
-            setStatus("Attempting to return to date and time selection.", "warning");
-            await wait(500);
-            return true;
-        }
-
-        setStatus("Date and time stepper not found.", "error");
-        return false;
+        return openStepper("Select date and time");
     }
 
     function getCountdownParts() {
@@ -1520,24 +1722,79 @@
         await wait(CONFIG.actionDelayMs);
 
         const courtSelected = await selectCourt();
-        if (!courtSelected) {
-            return { success: false, retryable: false };
+        if (!courtSelected.selected) {
+            return { success: false, reason: courtSelected.reason, retryable: false };
         }
 
         await wait(200);
 
         const proceededAfterCourt = await proceedAfterCourtSelection();
         if (!proceededAfterCourt) {
-            return { success: false, retryable: false };
+            return { success: false, reason: "court_next_missing", retryable: false, courtName: courtSelected.courtName };
         }
 
         await wait(200);
         await addFriendByName();
         await wait(230);
-        await proceedToFinalStep();
+        const reachedFinalStep = await proceedToFinalStep();
+        if (!reachedFinalStep) {
+            return { success: false, reason: "final_next_missing", retryable: false, courtName: courtSelected.courtName };
+        }
+
+        await wait(250);
+        const checkoutReady = await ensureCheckoutStep();
+        if (!checkoutReady) {
+            return { success: false, reason: "checkout_unavailable", retryable: false, courtName: courtSelected.courtName };
+        }
+
         await wait(250);
 
         return finalizeBooking();
+    }
+
+    async function retryBookingWithNextCourt() {
+        const returned = await goBackToDateTimeSelection();
+        if (!returned) {
+            return { success: false, reason: "date_time_stepper_missing", retryable: false };
+        }
+
+        const courtSelectionReady = await waitForCourtSelectionScreen();
+        if (!courtSelectionReady) {
+            return { success: false, reason: "court_list_missing", retryable: false };
+        }
+
+        const courtSelected = await selectCourt();
+        if (!courtSelected.selected) {
+            return { success: false, reason: courtSelected.reason, retryable: false };
+        }
+
+        await wait(250);
+        const checkoutReady = await ensureCheckoutStep({ forceOpen: true });
+        if (!checkoutReady) {
+            return { success: false, reason: "checkout_unavailable", retryable: false, courtName: courtSelected.courtName };
+        }
+
+        await wait(250);
+        return finalizeBooking();
+    }
+
+    function shouldRetryWithNextCourt(result) {
+        return !!result && result.retryable && ["booking_alert", "book_stalled"].includes(result.reason);
+    }
+
+    function rememberTriedCourt(courtName) {
+        if (courtName && !state.triedCourts.includes(courtName)) {
+            state.triedCourts.push(courtName);
+        }
+    }
+
+    function getRetryStatusMessage(result, nextCourtName) {
+        const currentCourtName = result.courtName || "the current court";
+        if (result.reason === "book_stalled") {
+            return `BOOK did not leave checkout for ${currentCourtName}. Retrying with next court: ${nextCourtName}.`;
+        }
+
+        return `Booking alert acknowledged for ${currentCourtName}. Retrying with next court: ${nextCourtName}.`;
     }
 
     async function startBookingFlow() {
@@ -1569,6 +1826,8 @@
             );
             state.desiredTimeIndex = 0;
             state.bookingAttempts = 0;
+            state.triedCourts = [];
+            state.currentCourtName = null;
 
             const waitedForCountdown = await waitForCountdownToEnd();
             if (state.waitCancelled) {
@@ -1585,23 +1844,56 @@
                 "info"
             );
 
-            for (let attempt = 0; attempt < CONFIG.MAX_BOOKING_ATTEMPTS; attempt += 1) {
-                state.bookingAttempts = attempt + 1;
-                state.desiredTimeIndex = 0;
+            state.bookingAttempts = 1;
+            state.desiredTimeIndex = 0;
 
-                if (attempt > 0) {
-                    const returned = await goBackToDateTimeSelection();
-                    if (!returned) {
-                        setMode("Error");
-                        setStatus("Could not navigate back for a retry.", "error");
-                        return;
-                    }
-                    await wait(300);
+            let result = await runBookingAttempt();
+            if (result.success) {
+                setMode("Done");
+                return;
+            }
+
+            if (shouldRetryWithNextCourt(result)) {
+                rememberTriedCourt(result.courtName);
+            } else if (result.reason === "exhausted") {
+                setMode("Failed");
+                setStatus("No more saved courts are available to try for this booking run.", "error");
+                return;
+            } else if (!result.retryable) {
+                setMode("Stopped");
+                return;
+            }
+
+            while (shouldRetryWithNextCourt(result)) {
+                const remainingCourts = getRemainingCourtPriority();
+                if (!remainingCourts.length) {
+                    setMode("Failed");
+                    setStatus(
+                        result.reason === "book_stalled"
+                            ? `BOOK never left checkout for ${result.courtName || "the current court"}. No more saved courts remain to try.`
+                            : `Booking alert acknowledged for ${result.courtName || "the current court"}. No more saved courts remain to try.`,
+                        "error"
+                    );
+                    return;
                 }
 
-                const result = await runBookingAttempt();
+                setStatus(getRetryStatusMessage(result, remainingCourts[0]), "warning");
+
+                state.bookingAttempts += 1;
+                result = await retryBookingWithNextCourt();
                 if (result.success) {
                     setMode("Done");
+                    return;
+                }
+
+                if (shouldRetryWithNextCourt(result)) {
+                    rememberTriedCourt(result.courtName);
+                    continue;
+                }
+
+                if (result.reason === "exhausted") {
+                    setMode("Failed");
+                    setStatus("No more saved courts are available to try for this booking run.", "error");
                     return;
                 }
 
@@ -1611,8 +1903,7 @@
                 }
             }
 
-            setMode("Failed");
-            setStatus(`Booking failed after ${CONFIG.MAX_BOOKING_ATTEMPTS} attempts.`, "error");
+            setMode("Stopped");
         })().finally(() => {
             state.runPromise = null;
         });
