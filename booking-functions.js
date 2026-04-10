@@ -7,8 +7,8 @@
 
     const CONFIG = {
         desiredTimes: ["5:30-6:30pm", "6:30-7:00pm", "7:00-7:30pm", "7:30-8:00pm"], 
-        targetHour: null,
-        targetMinute: null,
+        targetHour: 7,
+        targetMinute: 0,
         countdownMessageXPath: "//div[contains(text(),'Booking for this day will open in')]",
         countdownHourXPath: "(//div[contains(@class,'Countdown')]//td)[1]",
         countdownMinuteXPath: "(//div[contains(@class,'Countdown')]//td)[3]",
@@ -594,19 +594,6 @@
 
         const desiredTimesPreview = createPreviewCard("Generated Slots", state.desiredTimes.join(", "));
 
-        const scheduleFields = createElement("div");
-        Object.assign(scheduleFields.style, {
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "10px",
-        });
-
-        const hourField = createPanelInput("Hour", "6");
-        const minuteField = createPanelInput("Minutes", "59");
-        hourField.input.value = state.scheduleHour === null ? "" : String(state.scheduleHour);
-        minuteField.input.value = state.scheduleMinute === null ? "" : String(state.scheduleMinute).padStart(2, "0");
-        scheduleFields.append(hourField.wrapper, minuteField.wrapper);
-
         const statusCard = createElement("div");
         Object.assign(statusCard.style, {
             padding: "14px",
@@ -651,7 +638,6 @@
             courtPrioritySection,
             desiredRangeFields,
             desiredTimesPreview.wrapper,
-            scheduleFields,
             statusCard,
             buttonGrid
         );
@@ -665,8 +651,6 @@
         state.desiredRangeEndInput = desiredEndField.input;
         state.desiredRangeMeridiemSelect = meridiemField.select;
         state.desiredTimesPreview = desiredTimesPreview.value;
-        state.scheduleHourInput = hourField.input;
-        state.scheduleMinuteInput = minuteField.input;
         state.modeText = modeRow.value;
         state.countdownText = countdownRow.value;
         state.statusText = statusRow.value;
@@ -864,6 +848,12 @@
 
     function syncScheduleTimeFromInputs() {
         if (!state.scheduleHourInput || !state.scheduleMinuteInput) {
+            if (Number.isInteger(state.scheduleHour) && Number.isInteger(state.scheduleMinute)) {
+                return true;
+            }
+
+            state.scheduleHour = CONFIG.targetHour;
+            state.scheduleMinute = CONFIG.targetMinute;
             return true;
         }
 
