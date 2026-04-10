@@ -15,8 +15,11 @@
         countdownSecondXPath: "(//div[contains(@class,'Countdown')]//td)[5]",
         countdownInitialDelayMs: 1000,
         countdownPollMs: 200,
-        timeSlotSettlePollMs: 120,
+        timeSlotAlertWindowMs: 35,
+        timeSlotAlertPollMs: 5,
+        timeSlotSettlePollMs: 40,
         timeSlotSettleTimeoutMs: 2000,
+        timeSlotInterClickDelayMs: 0,
         courtSelectionPollMs: 120,
         courtSelectionTimeoutMs: 2000,
         bookingResultPollMs: 150,
@@ -1200,7 +1203,10 @@
 
         try {
             targetButton.click();
-            await wait(150);
+            const alertDeadline = Date.now() + CONFIG.timeSlotAlertWindowMs;
+            while (!alertSeen && Date.now() < alertDeadline) {
+                await wait(CONFIG.timeSlotAlertPollMs);
+            }
         } finally {
             window.alert = originalAlert;
         }
@@ -1321,7 +1327,9 @@
             }
 
             state.desiredTimeIndex += 1;
-            await wait(150);
+            if (CONFIG.timeSlotInterClickDelayMs > 0) {
+                await wait(CONFIG.timeSlotInterClickDelayMs);
+            }
         }
 
         if (results.failedLabels.length) {
